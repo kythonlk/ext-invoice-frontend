@@ -1,59 +1,103 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  
-  body {
-    font-family: var(--font-sans);
-    background-color: #f8fafc;
-    color: #0f172a;
-    -webkit-font-smoothing: antialiased;
-  }
+:root {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #172033;
+  background: #f6f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
-/* Billion Dollar ERP Light Mode Utilities */
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+
+body {
+  margin: 0;
+  background: #f6f7fb;
+  color: #172033;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+h1, h2, h3, h4 {
+  font-family: 'Manrope', 'DM Sans', sans-serif;
+  letter-spacing: -0.025em;
+}
+
+::selection { background: #c7d2fe; color: #1e1b4b; }
+
+.app-shell {
+  background: radial-gradient(circle at 85% -10%, rgba(99, 102, 241, .08), transparent 26rem), #f6f7fb;
+}
+
+.sidebar {
+  color: white;
+  background: radial-gradient(circle at 10% 4%, rgba(129, 140, 248, .45), transparent 15rem), linear-gradient(165deg, #1c2351 0%, #15183b 58%, #10132e 100%);
+  box-shadow: 18px 0 50px rgba(25, 29, 72, .12);
+}
+
 .erp-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.875rem;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.02);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, .96);
+  border: 1px solid rgba(226, 232, 240, .9);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .025), 0 8px 24px rgba(15, 23, 42, .035);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 
 .erp-card-hover:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
-  transform: translateY(-1px);
+  border-color: rgba(165, 180, 252, .75);
+  box-shadow: 0 18px 40px -18px rgba(49, 46, 129, .25);
+  transform: translateY(-2px);
 }
 
 .erp-header-glass {
-  background-color: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, .82);
+  border-bottom: 1px solid rgba(226, 232, 240, .75);
+  box-shadow: 0 5px 25px rgba(15, 23, 42, .025);
+  backdrop-filter: blur(20px) saturate(150%);
 }
 
 .glass-panel {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
-  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 70px -28px rgba(30, 27, 75, .25);
+  backdrop-filter: blur(22px);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.icon-button {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  border-radius: .8rem;
+  background: white;
+  color: #475569;
+  transition: .2s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
 }
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
+
+.icon-button:hover { color: #312e81; border-color: #c7d2fe; background: #eef2ff; }
+input, select, textarea { min-height: 2.65rem; }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px rgba(99, 102, 241, .1); }
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+@media (max-width: 767px) {
+  .erp-card { border-radius: 1rem; }
+  .notification-panel { position: fixed; top: 4.5rem; right: 1rem; }
+  table { min-width: 700px; }
 }
-::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }

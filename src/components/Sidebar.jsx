@@ -1,9 +1,9 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, FileSignature, ShieldCheck, Sparkles, Building2 } from 'lucide-react';
+import { LayoutDashboard, LogOut, FileSignature, ShieldCheck, X, FilePlus2 } from 'lucide-react';
 import clsx from 'clsx';
 
-function Sidebar({ user, onLogout }) {
+function Sidebar({ user, onLogout, isOpen, onClose }) {
   const isSuperUser = 
     user.role === 'superuser' ||
     user.Role === 'superuser' ||
@@ -14,69 +14,98 @@ function Sidebar({ user, onLogout }) {
     user.FocusUserID === 1;
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between h-screen shrink-0 shadow-xs select-none">
+    <>
+      <button
+        aria-label="Close navigation"
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-sm transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      />
+      <aside className={`sidebar fixed lg:relative inset-y-0 left-0 z-50 w-[min(18rem,86vw)] lg:w-72 flex flex-col justify-between h-screen shrink-0 select-none transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
       <div>
         {/* Brand Header */}
-        <div className="p-6 border-b border-slate-100">
+        <div className="p-5 sm:p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+            <div className="w-11 h-11 rounded-2xl bg-white text-indigo-700 flex items-center justify-center shadow-xl shadow-black/10">
               <FileSignature className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
-                Focus ERP
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 uppercase">
-                  Suite
+              <h1 className="text-base font-extrabold text-white tracking-tight flex items-center gap-1.5">
+                FocusFlow
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-white/12 text-indigo-100 uppercase">
+                  ERP
                 </span>
               </h1>
-              <p className="text-[11px] text-slate-400 font-medium">Invoice Approval Engine</p>
+              <p className="text-[11px] text-indigo-200/80 font-medium">Intelligent approvals</p>
             </div>
+            <button onClick={onClose} className="lg:hidden ml-auto p-2 text-indigo-100 hover:bg-white/10 rounded-xl" aria-label="Close navigation"><X className="w-5 h-5" /></button>
           </div>
         </div>
 
         {/* Navigation Links */}
         <div className="px-4 py-6 space-y-6">
-          <div>
-            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Main Menu
+          <div className="space-y-1.5">
+            <p className="px-3 text-[10px] font-bold text-indigo-300/70 uppercase tracking-[0.16em] mb-3">
+              Workspace
             </p>
 
             {/* Approvals */}
             <NavLink
               to="/"
+              onClick={onClose}
               className={({ isActive }) => clsx(
                 "flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium",
                 isActive 
-                  ? "bg-indigo-50/80 text-indigo-700 font-bold border border-indigo-100 shadow-xs" 
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  ? "bg-white text-indigo-950 font-bold shadow-xl shadow-indigo-950/20" 
+                  : "text-indigo-100/75 hover:text-white hover:bg-white/10"
               )}
             >
               <div className="flex items-center gap-3">
                 <LayoutDashboard className="w-4 h-4" />
-                <span>Approvals</span>
+                <span>Approvals Queue</span>
               </div>
               <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+            </NavLink>
+
+            {/* Create Voucher */}
+            <NavLink
+              to="/create-voucher"
+              onClick={onClose}
+              className={({ isActive }) => clsx(
+                "flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium",
+                isActive 
+                  ? "bg-white text-indigo-950 font-bold shadow-xl shadow-indigo-950/20" 
+                  : "text-indigo-100/75 hover:text-white hover:bg-white/10"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <FilePlus2 className="w-4 h-4" />
+                <span>New Voucher</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/25 text-indigo-100">
+                ERP
+              </span>
             </NavLink>
           </div>
 
           {/* Superuser Admin Controls */}
           {isSuperUser && (
             <div>
-              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+            <p className="px-3 text-[10px] font-bold text-indigo-300/70 uppercase tracking-[0.16em] mb-3">
                 Control Center
               </p>
 
               <NavLink
                 to="/admin"
+                onClick={onClose}
                 className={({ isActive }) => clsx(
                   "flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium",
                   isActive 
-                    ? "bg-indigo-50/80 text-indigo-700 font-bold border border-indigo-100 shadow-xs" 
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    ? "bg-white text-indigo-950 font-bold shadow-xl shadow-indigo-950/20" 
+                    : "text-indigo-100/75 hover:text-white hover:bg-white/10"
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                  <ShieldCheck className="w-4 h-4" />
                   <span>Superuser Admin</span>
                 </div>
                 <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-100 text-amber-700 border border-amber-200">
@@ -89,18 +118,18 @@ function Sidebar({ user, onLogout }) {
       </div>
 
       {/* User Footer */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-        <div className="p-3 bg-white border border-slate-200/80 rounded-xl mb-3 shadow-xs">
+      <div className="p-4 border-t border-white/10">
+        <div className="p-3 bg-white/8 border border-white/10 rounded-2xl mb-3">
           <div className="flex items-center justify-between">
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-slate-800 truncate">
+              <p className="text-xs font-bold text-white truncate">
                 {user.Username || user.LoginName || user.username}
               </p>
-              <p className="text-[10px] text-slate-400 truncate">
-                Focus User ID: {user.FocusUserID || user.FocusUserID || 1}
+              <p className="text-[10px] text-indigo-200/70 truncate">
+                Focus User ID: {user.FocusUserID || 1}
               </p>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 capitalize border border-indigo-100 shrink-0">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/15 text-emerald-200 capitalize border border-emerald-300/20 shrink-0">
               {user.Role || user.role || 'normal'}
             </span>
           </div>
@@ -108,13 +137,14 @@ function Sidebar({ user, onLogout }) {
 
         <button 
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-100 rounded-xl transition-colors shadow-xs"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-indigo-100 hover:text-white hover:bg-white/10 border border-white/10 rounded-xl transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           Sign Out
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../lib/api';
-import { 
-  Users, Settings, Plus, Shield, Layers, Building, Trash2, Check, Edit2, Upload, X, UserPlus, 
-  Search, ShieldCheck, FileCheck, ArrowRight, UploadCloud, RefreshCw, CheckCircle2, Sparkles
+import { getVoucherTypeLabel, VOUCHER_TYPE_OPTIONS } from '../lib/voucherTypes';
+import {
+  Users, Plus, Layers, Trash2, X, Search, UploadCloud, RefreshCw, CheckCircle2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
-function Admin({ user }) {
+function Admin() {
   const [activeTab, setActiveTab] = useState('workflows'); // 'workflows' | 'users' | 'restrictions' | 'erp-tester'
   const [workflows, setWorkflows] = useState([]);
   const [users, setUsers] = useState([]);
@@ -71,7 +70,7 @@ function Admin({ user }) {
       setEditingWorkflow(null);
       setWfName('');
       loadData();
-    } catch (err) {
+    } catch {
       alert("Failed to save workflow");
     }
   };
@@ -86,7 +85,7 @@ function Admin({ user }) {
         user_id: parseInt(userId)
       });
       loadData();
-    } catch (err) {
+    } catch {
       alert("Failed to assign user to level");
     }
   };
@@ -96,7 +95,7 @@ function Admin({ user }) {
     try {
       await api.delete(`/admin/workflows/levels/${levelRecordId}`);
       loadData();
-    } catch (err) {
+    } catch {
       alert("Failed to remove user from level");
     }
   };
@@ -107,7 +106,7 @@ function Admin({ user }) {
     try {
       await api.delete(`/admin/workflows/${id}`);
       loadData();
-    } catch (err) {
+    } catch {
       alert("Failed to delete workflow");
     }
   };
@@ -117,7 +116,7 @@ function Admin({ user }) {
     try {
       await api.put(`/admin/users/${userId}/role`, { role });
       loadData();
-    } catch (err) {
+    } catch {
       alert("Failed to update role");
     }
   };
@@ -146,7 +145,7 @@ function Admin({ user }) {
       });
       handleOpenUserRestrictions(selectedUserForRest);
       setNewRestId('');
-    } catch (err) {
+    } catch {
       alert("Failed to add restriction");
     }
   };
@@ -156,7 +155,7 @@ function Admin({ user }) {
     try {
       await api.delete(`/admin/restrictions/${id}`);
       handleOpenUserRestrictions(selectedUserForRest);
-    } catch (err) {
+    } catch {
       alert("Failed to delete restriction");
     }
   };
@@ -197,12 +196,12 @@ function Admin({ user }) {
   });
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 max-w-[1500px] mx-auto space-y-6 sm:space-y-8">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-5 pb-6 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Superuser Control Center</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">Control center</h1>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-100 text-indigo-700 uppercase border border-indigo-200">
               Admin Mode
             </span>
@@ -213,10 +212,10 @@ function Admin({ user }) {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-200/70 rounded-xl overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab('workflows')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'workflows' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -224,7 +223,7 @@ function Admin({ user }) {
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'users' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -232,7 +231,7 @@ function Admin({ user }) {
           </button>
           <button
             onClick={() => setActiveTab('erp-tester')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'erp-tester' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -244,7 +243,7 @@ function Admin({ user }) {
       {/* TAB 1: WORKFLOWS & MULTI-USER APPROVERS */}
       {activeTab === 'workflows' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-base font-extrabold text-slate-900">Approval Workflows & Multi-User Approvers</h2>
             <button
               onClick={() => {
@@ -255,7 +254,7 @@ function Admin({ user }) {
                 setWfLevelsCount(2);
                 setShowWorkflowModal(true);
               }}
-              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-md shadow-indigo-500/20"
+              className="w-full sm:w-auto justify-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-md shadow-indigo-500/20"
             >
               <Plus className="w-4 h-4" /> Create Workflow
             </button>
@@ -265,14 +264,14 @@ function Admin({ user }) {
             {workflows.map((wf) => {
               const matchedCostCenter = costCenters.find(cc => cc.FocusMasterID === wf.CostCenterID);
               return (
-                <div key={wf.ID} className="erp-card p-6 space-y-6">
+                <div key={wf.ID} className="erp-card p-4 sm:p-6 space-y-6">
                   {/* Workflow Title */}
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
                     <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-black text-slate-900">{wf.Name}</h3>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <h3 className="w-full sm:w-auto text-lg font-black text-slate-900">{wf.Name}</h3>
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                          {wf.VoucherType === 0 ? 'Any Module' : `Module ${wf.VoucherType}`}
+                          {wf.VoucherType === 0 ? 'All Voucher Types' : (wf.VoucherTypeLabel || getVoucherTypeLabel(wf.VoucherType))}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
                           {wf.CostCenterID === 0 ? 'Any Cost Center' : `CC: ${matchedCostCenter?.Name || wf.CostCenterID}`}
@@ -446,7 +445,7 @@ function Admin({ user }) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Form Card */}
-            <div className="erp-card p-6 space-y-4">
+            <div className="erp-card p-4 sm:p-6 space-y-4">
               <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
                 ERP Upload Parameters
               </h3>
@@ -495,15 +494,15 @@ function Admin({ user }) {
 
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Voucher Type / Module ID
+                    Voucher type
                   </label>
-                  <input
-                    type="number"
+                  <select
                     value={testerVoucherType}
                     onChange={(e) => setTesterVoucherType(e.target.value)}
-                    placeholder="1281"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
+                  >
+                    {VOUCHER_TYPE_OPTIONS.map((type) => <option key={type.id} value={type.id}>{type.code} - {type.name}</option>)}
+                  </select>
                 </div>
 
                 <button
@@ -525,7 +524,7 @@ function Admin({ user }) {
             </div>
 
             {/* Results Card */}
-            <div className="erp-card p-6 space-y-4">
+            <div className="erp-card p-4 sm:p-6 space-y-4">
               <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
                 API Response JSON Output
               </h3>
@@ -566,7 +565,7 @@ function Admin({ user }) {
       {/* Workflow Modal */}
       {showWorkflowModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-slate-200 shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto w-full p-4 sm:p-6 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base font-extrabold text-slate-900">Create New Approval Workflow</h3>
               <button onClick={() => setShowWorkflowModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -588,14 +587,15 @@ function Admin({ user }) {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Voucher Module</label>
-                <input
-                  type="number"
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Voucher type</label>
+                <select
                   value={wfVoucherType}
                   onChange={(e) => setWfVoucherType(e.target.value)}
-                  placeholder="0 for any, or 1281, 771, etc."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                />
+                >
+                  <option value={0}>All Voucher Types</option>
+                  {VOUCHER_TYPE_OPTIONS.map((type) => <option key={type.id} value={type.id}>{type.code} - {type.name}</option>)}
+                </select>
               </div>
 
               <div>
@@ -649,7 +649,7 @@ function Admin({ user }) {
       {/* Restrictions Modal */}
       {selectedUserForRest && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto w-full p-4 sm:p-6 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">User Restrictions Matrix</h3>
@@ -663,24 +663,24 @@ function Admin({ user }) {
             <div className="py-4 space-y-4 text-xs">
               <form onSubmit={handleAddRestriction} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                 <p className="font-bold text-slate-800">Add Restriction Scope</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <select
                     value={newRestType}
                     onChange={(e) => setNewRestType(e.target.value)}
                     className="p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
                   >
                     <option value="cost_center">Cost Center</option>
-                    <option value="module">Module ID</option>
+                    <option value="module">Voucher Type</option>
                   </select>
 
-                  <input
-                    type="number"
-                    value={newRestId}
-                    onChange={(e) => setNewRestId(e.target.value)}
-                    placeholder="Focus Master/Module ID"
-                    required
-                    className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
-                  />
+                  {newRestType === 'module' ? (
+                    <select value={newRestId} onChange={(e) => setNewRestId(e.target.value)} required className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
+                      <option value="" disabled>Select voucher type…</option>
+                      {VOUCHER_TYPE_OPTIONS.map((type) => <option key={type.id} value={type.id}>{type.code} - {type.name}</option>)}
+                    </select>
+                  ) : (
+                    <input type="number" value={newRestId} onChange={(e) => setNewRestId(e.target.value)} placeholder="Focus Cost Center ID" required className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800" />
+                  )}
 
                   <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg">
                     Add
@@ -696,8 +696,8 @@ function Admin({ user }) {
                   userRestrictions.map((r) => (
                     <div key={r.ID} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                       <div>
-                        <span className="font-bold text-slate-900 capitalize">{r.RestrictionType}: </span>
-                        <span className="font-mono text-indigo-700">ID #{r.RestrictionID}</span>
+                        <span className="font-bold text-slate-900">{r.RestrictionType === 'module' ? 'Voucher Type: ' : 'Cost Center: '}</span>
+                        <span className="text-indigo-700">{r.RestrictionType === 'module' ? getVoucherTypeLabel(r.RestrictionID) : `ID #${r.RestrictionID}`}</span>
                       </div>
                       <button onClick={() => handleDeleteRestriction(r.ID)} className="text-rose-500 p-1">
                         <Trash2 className="w-3.5 h-3.5" />

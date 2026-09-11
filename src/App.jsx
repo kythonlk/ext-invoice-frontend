@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
+import CreateVoucher from './pages/CreateVoucher';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 
 function App() {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
+  const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem('user');
-      }
+    if (!storedUser) return null;
+    try {
+      return JSON.parse(storedUser);
+    } catch {
+      localStorage.removeItem('user');
+      return null;
     }
-  }, []);
+  });
+  const [navigationOpen, setNavigationOpen] = useState(false);
 
   const handleLogin = (userData, token) => {
     setUser(userData);
@@ -44,11 +44,18 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
-        {user && <Sidebar user={user} onLogout={handleLogout} />}
+      <div className="app-shell flex h-screen overflow-hidden text-slate-900 font-sans">
+        {user && (
+          <Sidebar
+            user={user}
+            onLogout={handleLogout}
+            isOpen={navigationOpen}
+            onClose={() => setNavigationOpen(false)}
+          />
+        )}
         
         <div className="flex-1 flex flex-col overflow-hidden">
-          {user && <Header user={user} />}
+          {user && <Header user={user} onMenuClick={() => setNavigationOpen(true)} />}
 
           <main className="flex-1 overflow-y-auto">
             <Routes>
@@ -60,6 +67,11 @@ function App() {
               <Route 
                 path="/" 
                 element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
+              />
+              
+              <Route 
+                path="/create-voucher" 
+                element={user ? <CreateVoucher user={user} /> : <Navigate to="/login" />} 
               />
               
               <Route 

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, CheckCircle2, ShieldCheck, Check, Clock, FileText, ChevronDown } from 'lucide-react';
+import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 
-function Header({ user, title = "Dashboard" }) {
+function Header({ user, title = "Approval workspace", onMenuClick }) {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -25,13 +27,23 @@ function Header({ user, title = "Dashboard" }) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleMarkRead = async (id) => {
-    try {
-      await api.put(`/notifications/${id}/read`);
-      fetchNotifications();
-    } catch (err) {
-      console.error(err);
+  const handleOpenNotification = async (notification) => {
+    if (!notification.IsRead) {
+      try {
+        await api.put(`/notifications/${notification.ID}/read`);
+      } catch (err) {
+        console.error(err);
+      }
     }
+
+    setShowNotifs(false);
+    sessionStorage.setItem('openVoucherId', String(notification.VoucherID));
+    sessionStorage.setItem('openVoucherTab', 'document');
+    navigate('/');
+    window.dispatchEvent(new CustomEvent('focusx:open-voucher', {
+      detail: { voucherId: notification.VoucherID, tab: 'document' }
+    }));
+    fetchNotifications();
   };
 
   const handleMarkAllRead = async () => {
@@ -44,26 +56,29 @@ function Header({ user, title = "Dashboard" }) {
   };
 
   return (
-    <header className="sticky top-0 z-30 erp-header-glass px-8 py-4 flex items-center justify-between">
+    <header className="sticky top-0 z-30 erp-header-glass min-h-20 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3">
       {/* Left Title & Status */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+        <button onClick={onMenuClick} className="lg:hidden icon-button shrink-0" aria-label="Open navigation">
+          <Menu className="w-5 h-5" />
+        </button>
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">{title}</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+          <h1 className="text-base sm:text-lg font-extrabold text-slate-950 tracking-tight truncate">{title}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Focus ERP Sync Connected
             </span>
-            <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500 font-medium">MSSQL DB: Focus80D0</span>
+            <span className="hidden xl:inline text-xs text-slate-400">•</span>
+            <span className="hidden xl:inline text-xs text-slate-500 font-medium">Focus80D0</span>
           </div>
         </div>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Search Bar */}
-        <div className="relative hidden md:block w-64">
+        <div className="relative hidden xl:block w-64">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -76,7 +91,7 @@ function Header({ user, title = "Dashboard" }) {
         <div className="relative">
           <button
             onClick={() => setShowNotifs(!showNotifs)}
-            className="relative p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors border border-slate-200/80 shadow-xs"
+            className="icon-button relative"
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
@@ -89,7 +104,7 @@ function Header({ user, title = "Dashboard" }) {
 
           {/* Notif Dropdown Panel */}
           {showNotifs && (
-            <div className="absolute right-0 mt-2 w-96 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="notification-panel absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-96 bg-white border border-slate-200/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-sm text-slate-800">Notifications</span>
@@ -117,10 +132,12 @@ function Header({ user, title = "Dashboard" }) {
                   </div>
                 ) : (
                   notifications.map((n) => (
-                    <div
+                    <button
                       key={n.ID}
-                      className={`p-3 text-xs transition-colors flex items-start justify-between gap-3 ${
-                        !n.IsRead ? 'bg-indigo-50/40 font-medium' : 'hover:bg-slate-50'
+                      type="button"
+                      onClick={() => handleOpenNotification(n)}
+                      className={`w-full p-3 text-left text-xs transition-colors flex items-start justify-between gap-3 ${
+                        !n.IsRead ? 'bg-indigo-50/60 font-medium hover:bg-indigo-50' : 'hover:bg-slate-50'
                       }`}
                     >
                       <div className="flex gap-2.5">
@@ -135,16 +152,8 @@ function Header({ user, title = "Dashboard" }) {
                           </span>
                         </div>
                       </div>
-                      {!n.IsRead && (
-                        <button
-                          onClick={() => handleMarkRead(n.ID)}
-                          className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors shrink-0"
-                          title="Mark read"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                      <ChevronRight className="mt-2 w-4 h-4 text-slate-300 shrink-0" />
+                    </button>
                   ))
                 )}
               </div>
@@ -153,11 +162,11 @@ function Header({ user, title = "Dashboard" }) {
         </div>
 
         {/* Profile Card */}
-        <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
+        <div className="flex items-center gap-3 sm:pl-3 sm:border-l border-slate-200">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
             {(user.Username || user.LoginName || 'U').charAt(0).toUpperCase()}
           </div>
-          <div className="hidden sm:block text-left">
+          <div className="hidden md:block text-left">
             <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
               {user.Username || user.LoginName}
               {(user.Role === 'superuser' || user.role === 'superuser' || user.LoginName === 'su') && (
