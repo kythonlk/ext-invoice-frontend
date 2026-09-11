@@ -7,6 +7,7 @@ import CreateVoucher from './pages/CreateVoucher';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
+import UserSettingsModal from './components/UserSettingsModal';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -20,6 +21,7 @@ function App() {
     }
   });
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleLogin = (userData, token) => {
     setUser(userData);
@@ -31,6 +33,10 @@ function App() {
     setUser(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+  };
+
+  const handleUserUpdated = (updatedUser) => {
+    setUser(updatedUser);
   };
 
   const isSuperUser = user && (
@@ -46,6 +52,14 @@ function App() {
   return (
     <BrowserRouter>
       <PwaInstallPrompt />
+      {user && (
+        <UserSettingsModal
+          user={user}
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onUserUpdated={handleUserUpdated}
+        />
+      )}
       <div className="app-shell flex h-screen overflow-hidden text-slate-900 font-sans">
         {user && (
           <Sidebar
@@ -53,11 +67,18 @@ function App() {
             onLogout={handleLogout}
             isOpen={navigationOpen}
             onClose={() => setNavigationOpen(false)}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         )}
         
         <div className="flex-1 flex flex-col overflow-hidden">
-          {user && <Header user={user} onMenuClick={() => setNavigationOpen(true)} />}
+          {user && (
+            <Header 
+              user={user} 
+              onMenuClick={() => setNavigationOpen(true)}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+          )}
 
           <main className="flex-1 overflow-y-auto">
             <Routes>
@@ -68,12 +89,20 @@ function App() {
               
               <Route 
                 path="/" 
-                element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
+                element={
+                  user 
+                    ? <Dashboard user={user} onOpenSettings={() => setSettingsOpen(true)} /> 
+                    : <Navigate to="/login" />
+                } 
               />
               
               <Route 
                 path="/create-voucher" 
-                element={user ? <CreateVoucher user={user} /> : <Navigate to="/login" />} 
+                element={
+                  user && isSuperUser 
+                    ? <CreateVoucher user={user} /> 
+                    : <Navigate to="/" />
+                } 
               />
               
               <Route 

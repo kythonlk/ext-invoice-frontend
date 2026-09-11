@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight, Download } from 'lucide-react';
+import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight, Download, Settings, FileSignature } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { triggerPwaInstall } from './PwaInstallPrompt';
 
-function Header({ user, title = "Approval workspace", onMenuClick }) {
+function Header({ user, title = "Approval workspace", onMenuClick, onOpenSettings }) {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -173,8 +173,24 @@ function Header({ user, title = "Approval workspace", onMenuClick }) {
           )}
         </div>
 
-        {/* Profile Card */}
-        <div className="flex items-center gap-3 sm:pl-3 sm:border-l border-slate-200">
+        {/* E-Sign / User Settings Button */}
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+          title="Configure E-Signature & Settings"
+        >
+          <Settings className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden sm:inline">Settings</span>
+        </button>
+
+        {/* Profile Card (Clickable to open settings) */}
+        <button 
+          type="button"
+          onClick={onOpenSettings}
+          className="flex items-center gap-2.5 sm:pl-3 sm:border-l border-slate-200 hover:opacity-80 transition-opacity text-left"
+          title="Click to manage personal profile & e-signature"
+        >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
             {(user.Username || user.LoginName || 'U').charAt(0).toUpperCase()}
           </div>
@@ -189,7 +205,7 @@ function Header({ user, title = "Approval workspace", onMenuClick }) {
               {user.Role || user.role || 'User'}
             </div>
           </div>
-        </div>
+        </button>
       </div>
     </header>
   );

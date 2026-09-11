@@ -6,7 +6,7 @@ import {
   Receipt, ShieldCheck, Sparkles, RefreshCw, Hash
 } from 'lucide-react';
 import clsx from 'clsx';
-import api from '../lib/api';
+import api, { getFileUrl } from '../lib/api';
 
 const VOUCHER_TYPE_METADATA = {
   1281: {
@@ -347,7 +347,7 @@ export default function CreateVoucher({ user }) {
               <span className="text-slate-400 block font-medium">Document URL</span>
               {successResult.document_url ? (
                 <a
-                  href={`http://localhost:4210${successResult.document_url}`}
+                  href={getFileUrl(successResult.document_url)}
                   target="_blank"
                   rel="noreferrer"
                   className="font-bold text-indigo-600 hover:underline inline-flex items-center gap-1"

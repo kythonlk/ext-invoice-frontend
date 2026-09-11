@@ -1,10 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, LogOut, FileSignature, ShieldCheck, X, FilePlus2, Download } from 'lucide-react';
+import { LayoutDashboard, LogOut, FileSignature, ShieldCheck, X, FilePlus2, Download, Settings } from 'lucide-react';
 import clsx from 'clsx';
 import { triggerPwaInstall } from './PwaInstallPrompt';
 
-function Sidebar({ user, onLogout, isOpen, onClose }) {
+function Sidebar({ user, onLogout, isOpen, onClose, onOpenSettings }) {
   const isSuperUser = 
     user.role === 'superuser' ||
     user.Role === 'superuser' ||
@@ -67,25 +67,49 @@ function Sidebar({ user, onLogout, isOpen, onClose }) {
               <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
             </NavLink>
 
-            {/* Create Voucher */}
-            <NavLink
-              to="/create-voucher"
-              onClick={onClose}
-              className={({ isActive }) => clsx(
-                "flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium",
-                isActive 
-                  ? "bg-white text-indigo-950 font-bold shadow-xl shadow-indigo-950/20" 
-                  : "text-indigo-100/75 hover:text-white hover:bg-white/10"
-              )}
+            {/* Create Voucher - Only for Superuser */}
+            {isSuperUser && (
+              <NavLink
+                to="/create-voucher"
+                onClick={onClose}
+                className={({ isActive }) => clsx(
+                  "flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium",
+                  isActive 
+                    ? "bg-white text-indigo-950 font-bold shadow-xl shadow-indigo-950/20" 
+                    : "text-indigo-100/75 hover:text-white hover:bg-white/10"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <FilePlus2 className="w-4 h-4" />
+                  <span>New Voucher</span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/25 text-indigo-100">
+                  ERP
+                </span>
+              </NavLink>
+            )}
+
+            {/* My E-Signature Setup for Each User */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenSettings) onOpenSettings();
+                onClose();
+              }}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium text-indigo-100/75 hover:text-white hover:bg-white/10"
             >
               <div className="flex items-center gap-3">
-                <FilePlus2 className="w-4 h-4" />
-                <span>New Voucher</span>
+                <FileSignature className="w-4 h-4" />
+                <span>My E-Signature</span>
               </div>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/25 text-indigo-100">
-                ERP
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                user.ESignURL || user.e_sign_url
+                  ? 'bg-emerald-400/20 text-emerald-300' 
+                  : 'bg-amber-400/20 text-amber-300'
+              }`}>
+                {user.ESignURL || user.e_sign_url ? 'Active' : 'Setup'}
               </span>
-            </NavLink>
+            </button>
           </div>
 
           {/* Superuser Admin Controls */}
@@ -144,20 +168,26 @@ function Sidebar({ user, onLogout, isOpen, onClose }) {
 
       {/* User Footer */}
       <div className="p-4 border-t border-white/10">
-        <div className="p-3 bg-white/8 border border-white/10 rounded-2xl mb-3">
-          <div className="flex items-center justify-between">
-            <div className="overflow-hidden">
-              <p className="text-xs font-bold text-white truncate">
-                {user.Username || user.LoginName || user.username}
-              </p>
-              <p className="text-[10px] text-indigo-200/70 truncate">
-                Focus User ID: {user.FocusUserID || 1}
-              </p>
-            </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/15 text-emerald-200 capitalize border border-emerald-300/20 shrink-0">
-              {user.Role || user.role || 'normal'}
-            </span>
+        <div className="p-3 bg-white/8 border border-white/10 rounded-2xl mb-3 flex items-center justify-between gap-2">
+          <div className="overflow-hidden min-w-0 flex-1">
+            <p className="text-xs font-bold text-white truncate">
+              {user.Username || user.LoginName || user.username}
+            </p>
+            <p className="text-[10px] text-indigo-200/70 truncate">
+              Focus User ID: {user.FocusUserID || 1}
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenSettings) onOpenSettings();
+              onClose();
+            }}
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-colors"
+            title="User Settings & E-Signature"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
 
         <button 
