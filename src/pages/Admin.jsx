@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { getVoucherTypeLabel, VOUCHER_TYPE_OPTIONS } from '../lib/voucherTypes';
 import {
-  Users, Plus, Layers, Trash2, X, Search, UploadCloud, RefreshCw, CheckCircle2
+  Users, Plus, Layers, Trash2, X, Search, UploadCloud, RefreshCw, CheckCircle2, Pencil
 } from 'lucide-react';
 
 function Admin() {
@@ -55,23 +55,38 @@ function Admin() {
     loadData();
   }, []);
 
+  // Edit existing workflow
+  const handleEditWorkflow = (wf) => {
+    setEditingWorkflow(wf);
+    setWfName(wf.Name || '');
+    setWfVoucherType(wf.VoucherType ?? 0);
+    setWfCostCenterId(wf.CostCenterID ?? 0);
+    setWfLevelsCount(wf.LevelsCount || 1);
+    setShowWorkflowModal(true);
+  };
+
   // Save / Create Workflow
   const handleSaveWorkflow = async (e) => {
     e.preventDefault();
     try {
+      const levelsNum = Math.min(Math.max(parseInt(wfLevelsCount, 10) || 1, 1), 10);
       await api.post('/admin/workflows', {
         id: editingWorkflow ? editingWorkflow.ID : 0,
-        name: wfName,
-        voucher_type: parseInt(wfVoucherType),
-        cost_center_id: parseInt(wfCostCenterId),
-        levels_count: parseInt(wfLevelsCount)
+        name: wfName.trim(),
+        voucher_type: parseInt(wfVoucherType, 10) || 0,
+        cost_center_id: parseInt(wfCostCenterId, 10) || 0,
+        levels_count: levelsNum
       });
       setShowWorkflowModal(false);
       setEditingWorkflow(null);
       setWfName('');
-      loadData();
-    } catch {
-      alert("Failed to save workflow");
+      setWfVoucherType(0);
+      setWfCostCenterId(0);
+      setWfLevelsCount(2);
+      await loadData();
+    } catch (err) {
+      console.error("Save workflow error:", err);
+      alert(err.response?.data?.error || "Failed to save workflow");
     }
   };
 
@@ -277,20 +292,30 @@ function Admin() {
                           {wf.CostCenterID === 0 ? 'Any Cost Center' : `CC: ${matchedCostCenter?.Name || wf.CostCenterID}`}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">Total Sequential Levels: {wf.LevelsCount}</p>
+                      <p className="text-xs text-slate-400 mt-1">Total Sequential Levels: {wf.LevelsCount} (Max 10)</p>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteWorkflow(wf.ID)}
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors"
-                      title="Delete Workflow"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleEditWorkflow(wf)}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-200/80 shadow-2xs hover:scale-[1.02] active:scale-[0.98]"
+                        title="Edit Workflow"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Edit Workflow</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteWorkflow(wf.ID)}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl text-xs font-bold transition-colors border border-transparent hover:border-rose-200"
+                        title="Delete Workflow"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Visual Level Pipeline */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
                     {Array.from({ length: wf.LevelsCount }, (_, idx) => idx + 1).map((levelNum) => {
                       const levelUsers = (wf.Levels || []).filter(l => l.LevelOrder === levelNum);
                       return (
@@ -567,8 +592,24 @@ function Admin() {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto w-full p-4 sm:p-6 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h3 className="text-base font-extrabold text-slate-900">Create New Approval Workflow</h3>
-              <button onClick={() => setShowWorkflowModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {editingWorkflow ? 'Edit Approval Workflow' : 'Create New Approval Workflow'}
+                </h3>
+                {editingWorkflow && (
+                  <p className="text-[11px] text-indigo-600 font-semibold mt-0.5">
+                    Modifying Workflow #{editingWorkflow.ID} • {editingWorkflow.Name}
+                  </p>
+                )}
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowWorkflowModal(false);
+                  setEditingWorkflow(null);
+                }} 
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -615,30 +656,39 @@ function Admin() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Sequential Levels Count</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider">Sequential Levels Count (1 to 10)</label>
+                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                    Up to 10 Levels Max
+                  </span>
+                </div>
                 <input
                   type="number"
                   min={1}
-                  max={5}
+                  max={10}
                   value={wfLevelsCount}
                   onChange={(e) => setWfLevelsCount(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">Configure between 1 and 10 sequential approval stages.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowWorkflowModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold"
+                  onClick={() => {
+                    setShowWorkflowModal(false);
+                    setEditingWorkflow(null);
+                  }}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-500/20"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-500/20 transition-all"
                 >
-                  Save Workflow
+                  {editingWorkflow ? 'Update Workflow' : 'Save Workflow'}
                 </button>
               </div>
             </form>

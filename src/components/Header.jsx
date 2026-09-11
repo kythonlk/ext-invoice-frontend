@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight } from 'lucide-react';
+import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { triggerPwaInstall } from './PwaInstallPrompt';
 
 function Header({ user, title = "Approval workspace", onMenuClick }) {
   const navigate = useNavigate();
@@ -86,6 +87,17 @@ function Header({ user, title = "Approval workspace", onMenuClick }) {
             className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-100/80 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-800 placeholder:text-slate-400 transition-all"
           />
         </div>
+
+        {/* Download App Button */}
+        <button
+          type="button"
+          onClick={triggerPwaInstall}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
+          title="Download FocusFlow App"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Download App</span>
+        </button>
 
         {/* Notifications Dropdown */}
         <div className="relative">

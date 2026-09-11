@@ -1,7 +1,8 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, LogOut, FileSignature, ShieldCheck, X, FilePlus2 } from 'lucide-react';
+import { LayoutDashboard, LogOut, FileSignature, ShieldCheck, X, FilePlus2, Download } from 'lucide-react';
 import clsx from 'clsx';
+import { triggerPwaInstall } from './PwaInstallPrompt';
 
 function Sidebar({ user, onLogout, isOpen, onClose }) {
   const isSuperUser = 
@@ -115,6 +116,30 @@ function Sidebar({ user, onLogout, isOpen, onClose }) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* PWA Download Banner */}
+      <div className="mx-4 mb-2 p-3.5 rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 text-white shadow-inner">
+        <div className="flex items-center gap-2.5 mb-2.5">
+          <div className="w-7 h-7 rounded-lg bg-indigo-500/30 flex items-center justify-center text-indigo-200">
+            <Download className="w-4 h-4" />
+          </div>
+          <div className="leading-tight">
+            <p className="text-xs font-bold text-white">FocusFlow App</p>
+            <p className="text-[10px] text-indigo-200/70">Desktop & Mobile PWA</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            triggerPwaInstall();
+            onClose();
+          }}
+          className="w-full py-1.5 px-3 text-[11px] font-bold rounded-xl bg-white text-indigo-950 hover:bg-indigo-50 shadow-md transition-all flex items-center justify-center gap-1.5"
+        >
+          <Download className="w-3 h-3" />
+          Install / Download
+        </button>
       </div>
 
       {/* User Footer */}

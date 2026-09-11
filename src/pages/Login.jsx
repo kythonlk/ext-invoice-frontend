@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import api from '../lib/api';
-import { FileSignature, Lock, User, ShieldCheck, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
+import { FileSignature, Lock, User, ShieldCheck, ArrowRight, CheckCircle2, Sparkles, Download } from 'lucide-react';
+import { triggerPwaInstall } from '../components/PwaInstallPrompt';
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -84,7 +85,23 @@ function Login({ onLogin }) {
               {loading ? <><span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />Authenticating…</> : <>Continue to workspace <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></>}
             </button>
           </form>
-          <p className="mt-8 text-center text-xs leading-5 text-slate-400">Protected by your organization’s ERP access policies.<br />Need access? Contact your Focus administrator.</p>
+
+          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Available for Desktop & Mobile</span>
+            </div>
+            <button
+              type="button"
+              onClick={triggerPwaInstall}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl border border-indigo-200/60 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download App
+            </button>
+          </div>
+
+          <p className="mt-6 text-center text-xs leading-5 text-slate-400">Protected by your organization’s ERP access policies.<br />Need access? Contact your Focus administrator.</p>
         </motion.div>
       </section>
     </div>

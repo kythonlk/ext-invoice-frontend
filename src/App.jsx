@@ -6,6 +6,7 @@ import Admin from './pages/Admin';
 import CreateVoucher from './pages/CreateVoucher';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import PwaInstallPrompt from './components/PwaInstallPrompt';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -44,6 +45,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <PwaInstallPrompt />
       <div className="app-shell flex h-screen overflow-hidden text-slate-900 font-sans">
         {user && (
           <Sidebar

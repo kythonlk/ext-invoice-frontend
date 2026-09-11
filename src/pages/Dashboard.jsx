@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, FileText, Search, 
   Layers, DollarSign, Clock, ShieldCheck, Eye, X, RefreshCw,
   Package, ReceiptText, History, Paperclip, Loader2, Info,
-  UploadCloud, PlusCircle
+  UploadCloud, PlusCircle, ChevronRight, Pencil
 } from 'lucide-react';
 
 const resolveDocumentUrl = (url) => {
@@ -46,6 +46,19 @@ function Dashboard({ user }) {
   const [uploadSubmitting, setUploadSubmitting] = useState(false);
   const [uploadMessage, setUploadMessage] = useState(null);
 
+  const [workflows, setWorkflows] = useState([]);
+  const [showWorkflowsSection, setShowWorkflowsSection] = useState(true);
+
+  const isSuperUser = user && (
+    user.role === 'superuser' || 
+    user.Role === 'superuser' || 
+    user.role === 'admin' || 
+    user.Role === 'admin' || 
+    user.login_name === 'su' || 
+    user.LoginName === 'su' || 
+    user.FocusUserID === 1
+  );
+
   const fetchVouchers = async () => {
     try {
       setLoading(true);
@@ -68,9 +81,24 @@ function Dashboard({ user }) {
     }
   };
 
+  const fetchWorkflows = async () => {
+    try {
+      const res = await api.get('/workflows');
+      setWorkflows(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      try {
+        const fallback = await api.get('/admin/workflows');
+        setWorkflows(Array.isArray(fallback.data) ? fallback.data : []);
+      } catch (err) {
+        console.error('Failed to load workflows:', err);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchVouchers();
     fetchCostCenters();
+    fetchWorkflows();
   }, []);
 
   const handleUploadInvoice = async (e) => {
@@ -235,9 +263,11 @@ function Dashboard({ user }) {
         <div className="erp-card p-5 flex items-center justify-between overflow-hidden relative">
           <span className="absolute inset-y-5 left-0 w-1 rounded-r-full bg-amber-500" />
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active voucher types</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1">{voucherTypesCount}</h3>
-            <p className="text-[11px] text-slate-500 font-medium mt-1">MRP, DEV, CEB, PUV</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Workflows</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-1">{workflows.length}</h3>
+            <p className="text-[11px] text-slate-500 font-medium mt-1">
+              {workflows.length} flows across {voucherTypesCount} active modules
+            </p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
             <Layers className="w-6 h-6" />
@@ -273,39 +303,27 @@ function Dashboard({ user }) {
           >
             All voucher types ({vouchers.length})
           </button>
-          {[
-            { id: '1281', code: 'MRP', label: 'Material Receipt' },
-            { id: '771', code: 'DEV', label: 'Direct Expense' },
-            { id: '2570', code: 'CEB', label: 'Cash Expense' },
-            { id: '768', code: 'PUV', label: 'Purchases' },
-          ].map(module => (
-            <button
-              key={module.id}
-              onClick={() => setSelectedType(module.id)}
-              className={`shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                selectedType === module.id
-                  ? 'bg-indigo-600 text-white shadow-xs' 
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {module.code} ({vouchers.filter(v => String(v.VoucherType) === module.id).length})
-            </button>
-          ))}
-          {Array.from(new Set(vouchers.map(v => String(v.VoucherType))))
-            .filter(t => !['1281', '771', '2570', '768'].includes(t))
-            .map(type => (
+          {Array.from(new Set([
+            '1281', '771', '2570', '768',
+            ...workflows.map(wf => String(wf.VoucherType)).filter(t => t !== '0'),
+            ...vouchers.map(v => String(v.VoucherType))
+          ])).map(moduleId => {
+            const vInfo = getVoucherType(moduleId);
+            const count = vouchers.filter(v => String(v.VoucherType) === moduleId).length;
+            return (
               <button
-                key={type}
-                onClick={() => setSelectedType(type)}
+                key={moduleId}
+                onClick={() => setSelectedType(moduleId)}
                 className={`shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                  selectedType === type
+                  selectedType === moduleId
                     ? 'bg-indigo-600 text-white shadow-xs' 
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {getVoucherType(type).code} ({vouchers.filter(v => String(v.VoucherType) === type).length})
+                {vInfo.code} ({count})
               </button>
-            ))}
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -443,6 +461,116 @@ function Dashboard({ user }) {
           ))}
         </div>
       )}
+
+      {/* Configured Approval Workflows Overview Section on Dashboard */}
+      <div className="erp-card p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shadow-2xs border border-indigo-100">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Configured Approval Workflows
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {workflows.length} Active Flow{workflows.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Multi-level sequential authorization pipelines (supporting up to 10 approval levels)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowWorkflowsSection(!showWorkflowsSection)}
+              className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+            >
+              {showWorkflowsSection ? 'Collapse' : 'Expand'}
+            </button>
+            {isSuperUser && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200/80 transition-all shadow-2xs"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Configure & Edit Workflows</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showWorkflowsSection && (
+          workflows.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 text-xs font-medium">
+              No approval workflows configured yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              {workflows.map((wf) => {
+                const matchedCC = costCenters.find(cc => cc.FocusMasterID === wf.CostCenterID);
+                return (
+                  <div key={wf.ID} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3 hover:border-indigo-200 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-400 font-mono">#{wf.ID}</span>
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">{wf.Name}</h4>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            {wf.VoucherType === 0 ? 'Universal (All Types)' : (wf.VoucherTypeLabel || getVoucherTypeLabel(wf.VoucherType))}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                            {wf.CostCenterID === 0 ? 'All CC' : (matchedCC?.Name || `CC #${wf.CostCenterID}`)}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/70 text-slate-700">
+                            {wf.LevelsCount} Level{wf.LevelsCount > 1 ? 's' : ''} (Max 10)
+                          </span>
+                        </div>
+                      </div>
+                      {isSuperUser && (
+                        <button
+                          onClick={() => navigate('/admin')}
+                          className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors shrink-0 flex items-center gap-1 shadow-2xs"
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sequential Levels Pipeline Preview */}
+                    <div className="pt-2 border-t border-slate-200/60">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Approval Hierarchy</p>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                        {Array.from({ length: wf.LevelsCount }, (_, idx) => idx + 1).map((lvl) => {
+                          const approvers = (wf.Levels || []).filter(l => l.LevelOrder === lvl);
+                          return (
+                            <div 
+                              key={lvl}
+                              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-center shrink-0 min-w-[58px]"
+                              title={approvers.map(a => a.User?.Username || a.User?.LoginName).join(', ') || 'No approver assigned'}
+                            >
+                              <span className="text-[9px] font-extrabold text-slate-400 block uppercase">Lvl {lvl}</span>
+                              <span className={`text-[10px] font-extrabold block truncate ${approvers.length > 0 ? 'text-indigo-600' : 'text-amber-500'}`}>
+                                {approvers.length > 0 ? `${approvers.length} user${approvers.length > 1 ? 's' : ''}` : 'Unset'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+      </div>
 
       {/* Invoice details workspace */}
       <AnimatePresence>
