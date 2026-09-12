@@ -14,6 +14,22 @@ const resolveDocumentUrl = (url) => {
   return getFileUrl(url);
 };
 
+const formatErpDate = (d) => {
+  if (!d) return 'N/A';
+  if (typeof d === 'string' && (d.includes('/') || d.includes('-'))) return d;
+  const num = Number(d);
+  if (!isNaN(num) && num > 100000000 && num < 1000000000) {
+    const y = num >> 16;
+    const m = (num >> 8) & 0xff;
+    const day = num & 0xff;
+    return `${String(day).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  }
+  if (!isNaN(num) && num >= 1000000000) {
+    return new Date(num * 1000).toLocaleDateString();
+  }
+  return String(d);
+};
+
 function Dashboard({ user, onOpenSettings }) {
   const navigate = useNavigate();
   const [vouchers, setVouchers] = useState([]);
@@ -423,7 +439,7 @@ function Dashboard({ user, onOpenSettings }) {
 
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-slate-500">
                     <div>Focus Header ID: <strong className="text-slate-800">{v.FocusHeaderID}</strong></div>
-                    <div>ERP Date: <strong className="text-slate-800">{v.Date ? new Date(v.Date * 1000).toLocaleDateString() : 'N/A'}</strong></div>
+                    <div>ERP Date: <strong className="text-slate-800">{formatErpDate(v.Date)}</strong></div>
                     <div>Net amount: <strong className="text-indigo-700 text-sm font-bold">AED {(v.NetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></div>
                   </div>
                 </div>
@@ -626,7 +642,7 @@ function Dashboard({ user, onOpenSettings }) {
 
               <div className="px-4 sm:px-6 pt-4 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                 <div className="rounded-xl bg-slate-50 border border-slate-100 p-3"><p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Net amount</p><p className="mt-1 text-sm sm:text-base font-extrabold text-slate-900">AED {(detailVoucher.NetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p></div>
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-3"><p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">ERP date</p><p className="mt-1 text-sm font-bold text-slate-800">{detailVoucher.Date ? new Date(detailVoucher.Date * 1000).toLocaleDateString() : 'Not available'}</p></div>
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-3"><p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">ERP date</p><p className="mt-1 text-sm font-bold text-slate-800">{formatErpDate(detailVoucher.Date)}</p></div>
                 <div className="rounded-xl bg-slate-50 border border-slate-100 p-3"><p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Cost center</p><p className="mt-1 text-sm font-bold text-slate-800">{detailVoucher.CostCenterID || 'Not assigned'}</p></div>
                 <div className="rounded-xl bg-slate-50 border border-slate-100 p-3"><p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Created by</p><p className="mt-1 text-sm font-bold text-slate-800">Focus user #{detailVoucher.FocusUserID || '—'}</p></div>
               </div>

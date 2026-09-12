@@ -10,7 +10,8 @@ import {
   Sliders, 
   ShieldCheck, 
   FileSignature, 
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import api, { getFileUrl } from '../lib/api';
 
@@ -29,6 +30,8 @@ const STROKE_WIDTHS = [
 export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated }) {
   const [activeTab, setActiveTab] = useState('draw'); // 'draw' | 'upload'
   const [saving, setSaving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -167,109 +170,122 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
   // BACKGROUND REMOVAL ALGORITHM (HTML5 Canvas Pixel Processing)
   // ---------------------------------------------------------
   const processImageBackgroundRemoval = useCallback(() => {
-    if (!rawImageSrc) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      // 1. Scale image to reasonable max dimensions
-      const maxDim = 1200;
-      let w = img.width;
-      let h = img.height;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) {
-          h = Math.round((h * maxDim) / w);
-          w = maxDim;
-        } else {
-          w = Math.round((w * maxDim) / h);
-          h = maxDim;
-        }
-      }
+    if (!rawImageSrc) {
+      setIsProcessing(false);
+      return;
+    }
+    setIsProcessing(true);
 
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = w;
-      offCanvas.height = h;
-      const ctx = offCanvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(img, 0, 0, w, h);
-
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
-
-      // Calculate bounding box for auto-crop
-      let minX = w, minY = h, maxX = 0, maxY = 0;
-      let inkPixelCount = 0;
-
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // Perceived luminance (ITU-R BT.601)
-        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        if (lum >= threshold) {
-          // Paper background -> completely transparent
-          data[i + 3] = 0;
-        } else {
-          // Ink stroke zone
-          const x = (i / 4) % w;
-          const y = Math.floor((i / 4) / w);
-
-          // Smooth feathering zone near paper threshold
-          const lowerBound = threshold - feather;
-          let alpha = 255;
-          if (lum > lowerBound) {
-            alpha = Math.round(255 * (1 - (lum - lowerBound) / (threshold - lowerBound)));
-          }
-
-          data[i + 3] = alpha;
-
-          if (alpha > 25) {
-            inkPixelCount++;
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-          }
-
-          // Ink color adjustment
-          if (enhanceInk) {
-            if (inkColorMode === 'navy') {
-              // Executive navy ink
-              data[i] = Math.min(r, 20);
-              data[i + 1] = Math.min(g, 40);
-              data[i + 2] = Math.max(b, 100);
-            } else if (inkColorMode === 'darken') {
-              // Deep dark ink
-              data[i] = Math.round(r * 0.4);
-              data[i + 1] = Math.round(g * 0.4);
-              data[i + 2] = Math.round(b * 0.4);
+    const timer = setTimeout(() => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const maxDim = 1000;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
             }
           }
+
+          const offCanvas = document.createElement('canvas');
+          offCanvas.width = w;
+          offCanvas.height = h;
+          const ctx = offCanvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const imgData = ctx.getImageData(0, 0, w, h);
+          const data = imgData.data;
+
+          let minX = w, minY = h, maxX = 0, maxY = 0;
+          let inkPixelCount = 0;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            // Perceived luminance (ITU-R BT.601)
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+            if (lum >= threshold) {
+              data[i + 3] = 0; // Transparent paper
+            } else {
+              const x = (i / 4) % w;
+              const y = Math.floor((i / 4) / w);
+
+              const lowerBound = threshold - feather;
+              let alpha = 255;
+              if (lum > lowerBound) {
+                alpha = Math.round(255 * (1 - (lum - lowerBound) / (threshold - lowerBound)));
+              }
+
+              data[i + 3] = alpha;
+
+              if (alpha > 25) {
+                inkPixelCount++;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+
+              if (enhanceInk) {
+                if (inkColorMode === 'navy') {
+                  data[i] = Math.min(r, 20);
+                  data[i + 1] = Math.min(g, 40);
+                  data[i + 2] = Math.max(b, 100);
+                } else if (inkColorMode === 'darken') {
+                  data[i] = Math.round(r * 0.35);
+                  data[i + 1] = Math.round(g * 0.35);
+                  data[i + 2] = Math.round(b * 0.35);
+                }
+              }
+            }
+          }
+
+          ctx.putImageData(imgData, 0, 0);
+
+          if (inkPixelCount > 30 && maxX > minX && maxY > minY) {
+            const pad = 16;
+            const cropX = Math.max(0, minX - pad);
+            const cropY = Math.max(0, minY - pad);
+            const cropW = Math.min(w - cropX, maxX - minX + pad * 2);
+            const cropH = Math.min(h - cropY, maxY - minY + pad * 2);
+
+            const cropCanvas = document.createElement('canvas');
+            cropCanvas.width = cropW;
+            cropCanvas.height = cropH;
+            const cropCtx = cropCanvas.getContext('2d');
+            cropCtx.drawImage(offCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+            setProcessedDataUrl(cropCanvas.toDataURL('image/png'));
+          } else {
+            setProcessedDataUrl(offCanvas.toDataURL('image/png'));
+          }
+        } catch (err) {
+          console.error('Error processing background removal:', err);
+          setErrorMsg('Failed to process image background.');
+        } finally {
+          setIsProcessing(false);
         }
-      }
+      };
 
-      ctx.putImageData(imgData, 0, 0);
+      img.onerror = () => {
+        setErrorMsg('Failed to load image format.');
+        setIsProcessing(false);
+      };
 
-      // Auto-crop to bounding box with padding
-      if (inkPixelCount > 30 && maxX > minX && maxY > minY) {
-        const pad = 16;
-        const cropX = Math.max(0, minX - pad);
-        const cropY = Math.max(0, minY - pad);
-        const cropW = Math.min(w - cropX, maxX - minX + pad * 2);
-        const cropH = Math.min(h - cropY, maxY - minY + pad * 2);
+      img.src = rawImageSrc;
+    }, 20);
 
-        const cropCanvas = document.createElement('canvas');
-        cropCanvas.width = cropW;
-        cropCanvas.height = cropH;
-        const cropCtx = cropCanvas.getContext('2d');
-        cropCtx.drawImage(offCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-        setProcessedDataUrl(cropCanvas.toDataURL('image/png'));
-      } else {
-        setProcessedDataUrl(offCanvas.toDataURL('image/png'));
-      }
-    };
-    img.src = rawImageSrc;
+    return () => clearTimeout(timer);
   }, [rawImageSrc, threshold, feather, enhanceInk, inkColorMode]);
 
   // Re-process when sliders change
@@ -279,16 +295,15 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
     }
   }, [rawImageSrc, threshold, feather, enhanceInk, inkColorMode, processImageBackgroundRemoval]);
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleFileProcess = (file) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setErrorMsg('Please select a valid image file (PNG, JPG, WEBP).');
+      setErrorMsg('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
       return;
     }
 
-    setUploadFile(file);
+    setIsProcessing(true);
     setErrorMsg('');
     setSuccessMsg('');
 
@@ -296,7 +311,19 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
     reader.onload = (event) => {
       setRawImageSrc(event.target.result);
     };
+    reader.onerror = () => {
+      setErrorMsg('Failed to read image file. Please try another image.');
+      setIsProcessing(false);
+    };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    handleFileProcess(file);
+    if (e.target) {
+      e.target.value = '';
+    }
   };
 
   // ---------------------------------------------------------
@@ -387,7 +414,7 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
           parsed.e_sign_url = updatedUrl;
           localStorage.setItem('user', JSON.stringify(parsed));
           updatedUser = parsed;
-        } catch (e) {
+        } catch (_e) {
           // ignore
         }
       }
@@ -424,7 +451,7 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
           parsed.e_sign_url = '';
           localStorage.setItem('user', JSON.stringify(parsed));
           updatedUser = parsed;
-        } catch (e) {
+        } catch (_e) {
           // ignore
         }
       }
@@ -663,8 +690,23 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
                 {/* Upload Box */}
                 {!rawImageSrc ? (
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-8 text-center cursor-pointer transition-all hover:bg-indigo-50/20 group"
+                    onClick={() => !isProcessing && fileInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const file = e.dataTransfer?.files?.[0];
+                      if (file) handleFileProcess(file);
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all ${
+                      isDragging
+                        ? 'border-indigo-500 bg-indigo-50/40 scale-[0.99]'
+                        : 'border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/20'
+                    } ${isProcessing ? 'cursor-wait bg-slate-50' : 'cursor-pointer'} group`}
                   >
                     <input
                       ref={fileInputRef}
@@ -672,12 +714,26 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
                       accept="image/*"
                       onChange={handleFileSelect}
                       className="hidden"
+                      disabled={isProcessing}
                     />
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                      <UploadCloud className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-bold text-slate-800">Upload paper photo or signature scan</p>
-                    <p className="text-xs text-slate-500 mt-1">PNG, JPG, or WEBP. Background paper will be automatically made transparent.</p>
+                    {isProcessing ? (
+                      <div className="flex flex-col items-center justify-center py-4">
+                        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-3" />
+                        <p className="text-sm font-bold text-slate-800">Processing Signature Image...</p>
+                        <p className="text-xs text-slate-500 mt-1 animate-pulse">Removing paper background & isolating ink strokes...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <UploadCloud className="w-6 h-6" />
+                        </div>
+                        <p className="text-sm font-bold text-slate-800">Upload paper photo or signature scan</p>
+                        <p className="text-xs text-slate-500 mt-1">PNG, JPG, or WEBP. Paper background will be automatically made transparent.</p>
+                        <span className="inline-block mt-3 px-3 py-1 bg-slate-100 group-hover:bg-indigo-100 text-slate-600 group-hover:text-indigo-700 rounded-lg text-xs font-semibold transition-colors">
+                          Browse files or drag & drop here
+                        </span>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -689,12 +745,12 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
                           <span className="text-[11px] font-bold text-slate-600">Original Document Photo:</span>
                           <button
                             type="button"
+                            disabled={isProcessing}
                             onClick={() => {
                               setRawImageSrc(null);
-                              setUploadFile(null);
                               setProcessedDataUrl('');
                             }}
-                            className="text-[11px] text-indigo-600 font-semibold hover:underline"
+                            className="text-[11px] text-indigo-600 font-semibold hover:underline disabled:opacity-50"
                           >
                             Change Photo
                           </button>
@@ -705,21 +761,29 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
                       </div>
 
                       {/* Processed (Transparent) */}
-                      <div className="p-3 bg-indigo-50/40 rounded-2xl border border-indigo-200">
+                      <div className="p-3 bg-indigo-50/40 rounded-2xl border border-indigo-200 relative">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[11px] font-bold text-indigo-950 flex items-center gap-1">
                             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                             Processed (Transparent PNG):
                           </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                            Auto BG Removed
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            isProcessing ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {isProcessing ? 'Processing...' : 'Auto BG Removed'}
                           </span>
                         </div>
-                        <div className="h-36 rounded-xl overflow-hidden border border-dashed border-indigo-300 bg-[linear-gradient(45deg,#e2e8f0_25%,transparent_25%),linear-gradient(-45deg,#e2e8f0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e2e8f0_75%),linear-gradient(-45deg,transparent_75%,#e2e8f0_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] flex items-center justify-center p-2">
-                          {processedDataUrl ? (
+                        <div className="h-36 rounded-xl overflow-hidden border border-dashed border-indigo-300 bg-[linear-gradient(45deg,#e2e8f0_25%,transparent_25%),linear-gradient(-45deg,#e2e8f0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e2e8f0_75%),linear-gradient(-45deg,transparent_75%,#e2e8f0_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] flex items-center justify-center p-2 relative">
+                          {isProcessing ? (
+                            <div className="flex flex-col items-center justify-center p-3 text-center bg-white/80 backdrop-blur-sm rounded-xl inset-2 absolute">
+                              <Loader2 className="w-6 h-6 text-indigo-600 animate-spin mb-1.5" />
+                              <span className="text-xs font-semibold text-slate-700">Removing background...</span>
+                              <span className="text-[10px] text-slate-500">Isolating clean ink</span>
+                            </div>
+                          ) : processedDataUrl ? (
                             <img src={processedDataUrl} alt="Processed" className="max-h-full max-w-full object-contain filter drop-shadow-md" />
                           ) : (
-                            <span className="text-xs text-slate-400">Processing...</span>
+                            <span className="text-xs text-slate-400">No signature detected</span>
                           )}
                         </div>
                       </div>
@@ -833,13 +897,18 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
           <button
             type="button"
             onClick={handleSaveSignature}
-            disabled={saving || (activeTab === 'draw' && !hasDrawn) || (activeTab === 'upload' && !processedDataUrl)}
+            disabled={saving || isProcessing || (activeTab === 'draw' && !hasDrawn) || (activeTab === 'upload' && (!processedDataUrl || isProcessing))}
             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 flex items-center gap-2 transition-all"
           >
             {saving ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Saving Signature...</span>
+              </>
+            ) : isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Processing Image...</span>
               </>
             ) : (
               <>
