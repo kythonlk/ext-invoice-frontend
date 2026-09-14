@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, FileText, Search, 
   Layers, DollarSign, Clock, ShieldCheck, Eye, X, RefreshCw,
   Package, ReceiptText, History, Paperclip, Loader2, Info,
-  UploadCloud, PlusCircle, ChevronRight, Pencil, FileSignature
+  UploadCloud, PlusCircle, ChevronRight, Pencil, FileSignature, FileCheck2
 } from 'lucide-react';
 
 const resolveDocumentUrl = (url) => {
@@ -34,6 +34,7 @@ function Dashboard({ user, onOpenSettings }) {
   const navigate = useNavigate();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('all');
 
@@ -43,6 +44,8 @@ function Dashboard({ user, onOpenSettings }) {
   const [actionType, setActionType] = useState('Approve'); // Approve or Reject
   const [remarks, setRemarks] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionHistory, setActionHistory] = useState([]);
+  const [loadingActionHistory, setLoadingActionHistory] = useState(false);
   const [detailVoucher, setDetailVoucher] = useState(null);
   const [voucherDetails, setVoucherDetails] = useState(null);
   const [detailTab, setDetailTab] = useState('items');
@@ -193,11 +196,32 @@ function Dashboard({ user, onOpenSettings }) {
     return () => window.removeEventListener('focusx:open-voucher', openRequestedVoucher);
   }, []);
 
+  const openActionModal = async (v, type) => {
+    setActionVoucher(v);
+    setActionType(type);
+    setRemarks('');
+    setActionHistory([]);
+    if (v.CurrentLevel > 1) {
+      setLoadingActionHistory(true);
+      try {
+        const res = await api.get(`/vouchers/${v.ID}/details`);
+        const hist = (res.data?.approval_history || []).filter(
+          h => h.action === 'Approve' || h.action === 'Approved'
+        );
+        setActionHistory(hist);
+      } catch (err) {
+        console.error('Failed to load prior approvals:', err);
+      } finally {
+        setLoadingActionHistory(false);
+      }
+    }
+  };
+
   const handlePerformAction = async () => {
     if (!actionVoucher) return;
     setActionSubmitting(true);
     try {
-      await api.post('/vouchers/approve', {
+      const res = await api.post('/vouchers/approve', {
         voucher_id: actionVoucher.ID,
         action: actionType,
         remarks: remarks || `Actioned by ${user.Username || user.LoginName}`
@@ -205,6 +229,10 @@ function Dashboard({ user, onOpenSettings }) {
       setActionVoucher(null);
       setRemarks('');
       fetchVouchers();
+      if (res.data?.message) {
+        // Optional quick notification
+        console.log(res.data.message);
+      }
     } catch {
       alert('Failed to perform authorization action');
     } finally {
@@ -479,20 +507,18 @@ function Dashboard({ user, onOpenSettings }) {
                   <button 
                     onClick={(event) => {
                       event.stopPropagation();
-                      setActionVoucher(v);
-                      setActionType('Reject');
+                      openActionModal(v, 'Reject');
                     }}
                     className="min-h-10 px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded-xl transition-all text-xs border border-rose-200 flex items-center justify-center gap-1.5 shadow-xs"
                   >
                     <XCircle className="w-4 h-4" />
-                    Reject
+                    {v.CurrentLevel > 1 ? `Return (L${v.CurrentLevel - 1})` : 'Reject'}
                   </button>
 
                   <button 
                     onClick={(event) => {
                       event.stopPropagation();
-                      setActionVoucher(v);
-                      setActionType('Approve');
+                      openActionModal(v, 'Approve');
                     }}
                     className="min-h-10 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/20"
                   >
@@ -693,15 +719,58 @@ function Dashboard({ user, onOpenSettings }) {
                   ) : <div className="h-64 flex flex-col items-center justify-center text-center"><Paperclip className="w-9 h-9 text-slate-300 mb-3" /><p className="font-bold text-slate-700">No document attached</p><p className="text-xs text-slate-400 mt-1">The ERP record is available, but it has no uploaded file.</p></div>
                 ) : voucherDetails?.approval_history?.length ? (
                   <div className="max-w-2xl space-y-3">{voucherDetails.approval_history.map((entry) => (
-                    <div key={entry.id} className="erp-card p-4 flex gap-3"><div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${entry.action === 'Reject' || entry.action === 'Rejected' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}><CheckCircle2 className="w-4 h-4" /></div><div><p className="text-sm font-bold text-slate-900">{entry.action} by {entry.approver || 'ERP user'}</p><p className="text-xs text-slate-500 mt-0.5">Level {entry.level} · {new Date(entry.created_at).toLocaleString()}</p>{entry.remarks && <p className="mt-2 text-xs text-slate-600 bg-slate-50 rounded-lg p-2.5">{entry.remarks}</p>}</div></div>
+                    <div key={entry.id} className="erp-card p-4 flex items-start justify-between gap-3">
+                      <div className="flex gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${entry.action === 'Reject' || entry.action === 'Rejected' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{entry.action} by {entry.approver || 'ERP user'}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Level {entry.level} · {new Date(entry.created_at).toLocaleString()}</p>
+                          {entry.remarks && <p className="mt-2 text-xs text-slate-600 bg-slate-50 rounded-lg p-2.5">{entry.remarks}</p>}
+                        </div>
+                      </div>
+
+                      {entry.e_sign_used ? (
+                        <div className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg max-w-[120px] max-h-12 flex items-center justify-center shrink-0 shadow-2xs">
+                          <img 
+                            src={getFileUrl(entry.e_sign_used)} 
+                            alt="Signature" 
+                            className="max-h-9 max-w-full object-contain" 
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
+                          Verified
+                        </span>
+                      )}
+                    </div>
                   ))}</div>
                 ) : <div className="h-64 flex flex-col items-center justify-center text-center"><History className="w-9 h-9 text-slate-300 mb-3" /><p className="font-bold text-slate-700">No approval actions yet</p><p className="text-xs text-slate-400 mt-1">This invoice is waiting for its first decision.</p></div>}
               </div>
 
               {detailVoucher.ApprovalStatus === 'Pending' && (
                 <div className="p-3 sm:px-6 sm:py-4 border-t border-slate-200 bg-white flex items-center justify-end gap-2">
-                  <button onClick={() => { setActionVoucher(detailVoucher); setActionType('Reject'); setDetailVoucher(null); }} className="min-h-10 px-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100">Reject</button>
-                  <button onClick={() => { setActionVoucher(detailVoucher); setActionType('Approve'); setDetailVoucher(null); }} className="min-h-10 px-5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200">Authorize invoice</button>
+                  <button 
+                    onClick={() => { 
+                      const v = detailVoucher; 
+                      setDetailVoucher(null); 
+                      openActionModal(v, 'Reject'); 
+                    }} 
+                    className="min-h-10 px-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100"
+                  >
+                    {detailVoucher.CurrentLevel > 1 ? `Return to Level ${detailVoucher.CurrentLevel - 1}` : 'Reject'}
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      const v = detailVoucher; 
+                      setDetailVoucher(null); 
+                      openActionModal(v, 'Approve'); 
+                    }} 
+                    className="min-h-10 px-5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200"
+                  >
+                    Authorize invoice
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -780,9 +849,20 @@ function Dashboard({ user, onOpenSettings }) {
                   )}
                   <div>
                     <h3 className="text-base font-extrabold text-slate-900">
-                      {actionType === 'Approve' ? 'Authorize & E-Sign' : 'Reject Voucher'}
+                      {actionType === 'Approve' 
+                        ? `Authorize & E-Sign (Level ${actionVoucher.CurrentLevel})` 
+                        : (actionVoucher.CurrentLevel > 1 
+                            ? `Return to Level ${actionVoucher.CurrentLevel - 1}` 
+                            : 'Reject Voucher')}
                     </h3>
-                    <p className="text-xs text-slate-500">Voucher #{actionVoucher.VoucherNo}</p>
+                    <p className="text-xs text-slate-500">
+                      Voucher #{actionVoucher.VoucherNo}
+                      {actionType === 'Reject' && actionVoucher.CurrentLevel > 1 && (
+                        <span className="ml-1.5 text-amber-600 font-semibold">
+                          (Will step down to Level {actionVoucher.CurrentLevel - 1})
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <button onClick={() => setActionVoucher(null)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -791,6 +871,65 @@ function Dashboard({ user, onOpenSettings }) {
               </div>
 
               <div className="py-4 space-y-4">
+                {/* Previous Level Approvals & Signatures for Multi-level Vouchers */}
+                {actionVoucher.CurrentLevel > 1 && (
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileCheck2 className="w-3.5 h-3.5 text-indigo-600" />
+                        Previous Level Approvals & Signatures:
+                      </p>
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
+                        Level {actionVoucher.CurrentLevel - 1} Approved
+                      </span>
+                    </div>
+
+                    {loadingActionHistory ? (
+                      <div className="py-3 text-center text-xs text-slate-400">Loading prior signatures...</div>
+                    ) : actionHistory.length > 0 ? (
+                      <div className="space-y-2">
+                        {actionHistory.map((entry) => (
+                          <div key={entry.id} className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-3 shadow-2xs">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                                  Level {entry.level}
+                                </span>
+                                <span className="text-xs font-bold text-slate-900 truncate">
+                                  {entry.approver}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {new Date(entry.created_at).toLocaleString()}
+                              </p>
+                              {entry.remarks && (
+                                <p className="text-[11px] text-slate-600 italic mt-1 bg-slate-50 p-1.5 rounded">
+                                  "{entry.remarks}"
+                                </p>
+                              )}
+                            </div>
+                            {entry.e_sign_used ? (
+                              <div className="p-1 bg-slate-50 rounded border border-slate-200 shrink-0 max-w-[110px] max-h-12 flex items-center justify-center">
+                                <img 
+                                  src={getFileUrl(entry.e_sign_used)} 
+                                  alt={`Level ${entry.level} Signature`} 
+                                  className="max-h-10 max-w-full object-contain" 
+                                />
+                              </div>
+                            ) : (
+                              <div className="px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-bold shrink-0">
+                                [ Verified E-Sign ]
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 italic">No prior signature records found.</p>
+                    )}
+                  </div>
+                )}
+
                 {actionType === 'Approve' && (
                   <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -828,13 +967,13 @@ function Dashboard({ user, onOpenSettings }) {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Approval Remarks / Notes
+                    {actionType === 'Approve' ? 'Approval Remarks / Notes' : (actionVoucher.CurrentLevel > 1 ? 'Reason for Returning to Previous Level' : 'Reason for Rejection')}
                   </label>
                   <textarea
                     rows={3}
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
-                    placeholder={actionType === 'Approve' ? 'Enter authorization notes...' : 'Reason for rejection...'}
+                    placeholder={actionType === 'Approve' ? 'Enter authorization notes...' : 'Reason for returning/rejecting...'}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
@@ -853,10 +992,18 @@ function Dashboard({ user, onOpenSettings }) {
                   className={`px-5 py-2 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md ${
                     actionType === 'Approve' 
                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/20' 
-                      : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
+                      : (actionVoucher.CurrentLevel > 1 
+                          ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/20' 
+                          : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20')
                   }`}
                 >
-                  {actionSubmitting ? 'Processing...' : (actionType === 'Approve' ? 'Confirm Approval' : 'Confirm Rejection')}
+                  {actionSubmitting 
+                    ? 'Processing...' 
+                    : (actionType === 'Approve' 
+                        ? 'Confirm Approval' 
+                        : (actionVoucher.CurrentLevel > 1 
+                            ? `Return to Level ${actionVoucher.CurrentLevel - 1}` 
+                            : 'Confirm Rejection'))}
                 </button>
               </div>
             </motion.div>

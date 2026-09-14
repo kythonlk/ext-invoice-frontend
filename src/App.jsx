@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import CreateVoucher from './pages/CreateVoucher';
+import ApprovedVouchers from './pages/ApprovedVouchers';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
@@ -92,6 +93,15 @@ function App() {
                 element={
                   user 
                     ? <Dashboard user={user} onOpenSettings={() => setSettingsOpen(true)} /> 
+                    : <Navigate to="/login" />
+                } 
+              />
+              
+              <Route 
+                path="/approved" 
+                element={
+                  user 
+                    ? <ApprovedVouchers user={user} /> 
                     : <Navigate to="/login" />
                 } 
               />
