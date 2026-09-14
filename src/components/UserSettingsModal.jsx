@@ -49,10 +49,10 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
   // UPLOAD STATE
   const [rawImageSrc, setRawImageSrc] = useState(null);
   const [processedDataUrl, setProcessedDataUrl] = useState('');
-  const [threshold, setThreshold] = useState(210); // paper brightness threshold (0-255)
-  const [feather, setFeather] = useState(35); // smooth alpha zone
-  const [enhanceInk, setEnhanceInk] = useState(true);
-  const [inkColorMode, setInkColorMode] = useState('darken'); // 'darken' | 'navy' | 'original'
+  const [threshold, setThreshold] = useState(82); // Background clean sensitivity (60-95%)
+  const [feather, setFeather] = useState(18); // Edge smoothness zone (8-35)
+  const [removeSpecks, setRemoveSpecks] = useState(true);
+  const [inkColorMode, setInkColorMode] = useState('navy'); // 'navy' | 'darken' | 'royal' | 'original'
   const fileInputRef = useRef(null);
 
   // Sync user prop
@@ -203,48 +203,173 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
           const imgData = ctx.getImageData(0, 0, w, h);
           const data = imgData.data;
 
+          // ---------------------------------------------------------
+          // STEP 1: Compute Local Background Illumination Map
+          // ---------------------------------------------------------
+          // Paper photos often have shadows, gradients, or corner vignetting.
+          // By computing local background luminance across tiles (grid blocks),
+          // we adapt to uneven paper lighting anywhere across the document.
+          const blockSize = Math.max(16, Math.min(48, Math.round(Math.max(w, h) / 28)));
+          const numBlocksX = Math.ceil(w / blockSize);
+          const numBlocksY = Math.ceil(h / blockSize);
+
+          const bgLum = Array.from({ length: numBlocksY }, () => new Float32Array(numBlocksX));
+
+          for (let by = 0; by < numBlocksY; by++) {
+            const yStart = by * blockSize;
+            const yEnd = Math.min(h, (by + 1) * blockSize);
+
+            for (let bx = 0; bx < numBlocksX; bx++) {
+              const xStart = bx * blockSize;
+              const xEnd = Math.min(w, (bx + 1) * blockSize);
+
+              const blockLums = [];
+              for (let py = yStart; py < yEnd; py++) {
+                const rowOffset = py * w * 4;
+                for (let px = xStart; px < xEnd; px++) {
+                  const idx = rowOffset + px * 4;
+                  const r = data[idx];
+                  const g = data[idx + 1];
+                  const b = data[idx + 2];
+                  blockLums.push(0.299 * r + 0.587 * g + 0.114 * b);
+                }
+              }
+
+              if (blockLums.length > 0) {
+                blockLums.sort((a, b) => a - b);
+                // The 92nd percentile in this block represents the paper background level
+                const pIdx = Math.min(blockLums.length - 1, Math.floor(blockLums.length * 0.92));
+                bgLum[by][bx] = blockLums[pIdx];
+              } else {
+                bgLum[by][bx] = 220;
+              }
+            }
+          }
+
+          // Bilinear interpolation for smooth continuous paper background at (x, y)
+          const getLocalBgLum = (x, y) => {
+            const gx = (x - blockSize / 2) / blockSize;
+            const gy = (y - blockSize / 2) / blockSize;
+
+            const bx0 = Math.max(0, Math.min(numBlocksX - 1, Math.floor(gx)));
+            const bx1 = Math.max(0, Math.min(numBlocksX - 1, bx0 + 1));
+            const by0 = Math.max(0, Math.min(numBlocksY - 1, Math.floor(gy)));
+            const by1 = Math.max(0, Math.min(numBlocksY - 1, by0 + 1));
+
+            const fx = Math.max(0, Math.min(1, gx - bx0));
+            const fy = Math.max(0, Math.min(1, gy - by0));
+
+            const top = bgLum[by0][bx0] * (1 - fx) + bgLum[by0][bx1] * fx;
+            const btm = bgLum[by1][bx0] * (1 - fx) + bgLum[by1][bx1] * fx;
+            return Math.max(30, top * (1 - fy) + btm * fy);
+          };
+
+          // ---------------------------------------------------------
+          // STEP 2: Paper Removal & Pure Ink Color Isolation
+          // ---------------------------------------------------------
+          const cleanCutoff = threshold / 100.0;
+          const featherZone = Math.max(0.04, feather / 100.0);
+          const coreCutoff = Math.max(0.2, cleanCutoff - featherZone);
+
           let minX = w, minY = h, maxX = 0, maxY = 0;
           let inkPixelCount = 0;
 
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
+          // Target pure ink color palette (completely eliminating paper edge colors)
+          let targetR = 14, targetG = 42, targetB = 107; // Default: Executive Navy
+          if (inkColorMode === 'darken') {
+            targetR = 17; targetG = 24; targetB = 39; // Jet Black
+          } else if (inkColorMode === 'royal') {
+            targetR = 30; targetG = 64; targetB = 175; // Royal Blue
+          }
 
-            // Perceived luminance (ITU-R BT.601)
-            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          for (let py = 0; py < h; py++) {
+            const rowOffset = py * w * 4;
+            for (let px = 0; px < w; px++) {
+              const i = rowOffset + px * 4;
+              const r = data[i];
+              const g = data[i + 1];
+              const b = data[i + 2];
 
-            if (lum >= threshold) {
-              data[i + 3] = 0; // Transparent paper
-            } else {
-              const x = (i / 4) % w;
-              const y = Math.floor((i / 4) / w);
+              const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+              const localBg = getLocalBgLum(px, py);
 
-              const lowerBound = threshold - feather;
-              let alpha = 255;
-              if (lum > lowerBound) {
-                alpha = Math.round(255 * (1 - (lum - lowerBound) / (threshold - lowerBound)));
+              // Relative luminance compared to local paper background
+              const ratio = lum / localBg;
+
+              // If ratio >= cleanCutoff, it is pure paper/shadow -> 100% transparent!
+              if (ratio >= cleanCutoff) {
+                data[i + 3] = 0; // Absolute transparent paper
+              } else {
+                // Ink stroke pixel
+                let alpha = 255;
+                if (ratio > coreCutoff) {
+                  const t = (cleanCutoff - ratio) / (cleanCutoff - coreCutoff);
+                  alpha = Math.round(255 * Math.pow(Math.max(0, Math.min(1, t)), 1.25));
+                }
+
+                // Discard faint shadow haze
+                if (alpha < 14) {
+                  data[i + 3] = 0;
+                  continue;
+                }
+
+                data[i + 3] = alpha;
+
+                // CRITICAL: Replace RGB with pure ink so ZERO paper edge colors remain on background!
+                if (inkColorMode === 'original') {
+                  // De-fringe original ink: preserve hue while removing paper background wash
+                  data[i] = Math.round(Math.min(r, lum * 0.7));
+                  data[i + 1] = Math.round(Math.min(g, lum * 0.7));
+                  data[i + 2] = Math.round(Math.max(b, lum * 0.9));
+                } else {
+                  data[i] = targetR;
+                  data[i + 1] = targetG;
+                  data[i + 2] = targetB;
+                }
+
+                if (alpha > 35) {
+                  inkPixelCount++;
+                  if (px < minX) minX = px;
+                  if (px > maxX) maxX = px;
+                  if (py < minY) minY = py;
+                  if (py > maxY) maxY = py;
+                }
               }
+            }
+          }
 
-              data[i + 3] = alpha;
+          // ---------------------------------------------------------
+          // STEP 3: Stray Dust & Sensor Noise Elimination (Despeckle)
+          // ---------------------------------------------------------
+          if (removeSpecks && inkPixelCount > 20) {
+            const alphaMap = new Uint8Array(w * h);
+            for (let idx = 0; idx < w * h; idx++) {
+              alphaMap[idx] = data[idx * 4 + 3];
+            }
 
-              if (alpha > 25) {
-                inkPixelCount++;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-              }
+            for (let py = 0; py < h; py++) {
+              const rowOffset = py * w;
+              for (let px = 0; px < w; px++) {
+                const idx = rowOffset + px;
+                if (alphaMap[idx] <= 15) continue;
 
-              if (enhanceInk) {
-                if (inkColorMode === 'navy') {
-                  data[i] = Math.min(r, 20);
-                  data[i + 1] = Math.min(g, 40);
-                  data[i + 2] = Math.max(b, 100);
-                } else if (inkColorMode === 'darken') {
-                  data[i] = Math.round(r * 0.35);
-                  data[i + 1] = Math.round(g * 0.35);
-                  data[i + 2] = Math.round(b * 0.35);
+                let neighbors = 0;
+                for (let dy = -1; dy <= 1; dy++) {
+                  const ny = py + dy;
+                  if (ny < 0 || ny >= h) continue;
+                  for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const nx = px + dx;
+                    if (nx < 0 || nx >= w) continue;
+                    if (alphaMap[ny * w + nx] > 25) {
+                      neighbors++;
+                    }
+                  }
+                }
+
+                // If an ink pixel is isolated (less than 2 neighboring ink pixels), it's noise/speck!
+                if (neighbors < 2) {
+                  data[idx * 4 + 3] = 0;
                 }
               }
             }
@@ -252,8 +377,11 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
 
           ctx.putImageData(imgData, 0, 0);
 
+          // ---------------------------------------------------------
+          // STEP 4: Tight Cropping Around Actual Ink Strokes
+          // ---------------------------------------------------------
           if (inkPixelCount > 30 && maxX > minX && maxY > minY) {
-            const pad = 16;
+            const pad = 20;
             const cropX = Math.max(0, minX - pad);
             const cropY = Math.max(0, minY - pad);
             const cropW = Math.min(w - cropX, maxX - minX + pad * 2);
@@ -286,14 +414,14 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
     }, 20);
 
     return () => clearTimeout(timer);
-  }, [rawImageSrc, threshold, feather, enhanceInk, inkColorMode]);
+  }, [rawImageSrc, threshold, feather, inkColorMode, removeSpecks]);
 
   // Re-process when sliders change
   useEffect(() => {
     if (rawImageSrc) {
       processImageBackgroundRemoval();
     }
-  }, [rawImageSrc, threshold, feather, enhanceInk, inkColorMode, processImageBackgroundRemoval]);
+  }, [rawImageSrc, threshold, feather, inkColorMode, removeSpecks, processImageBackgroundRemoval]);
 
   const handleFileProcess = (file) => {
     if (!file) return;
@@ -787,80 +915,117 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
                           )}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Fine-Tuning Sliders */}
+                    </div>                    {/* Fine-Tuning Sliders */}
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                          <Sliders className="w-3.5 h-3.5 text-indigo-600" /> Background Removal Fine-Tuning
+                          <Sliders className="w-3.5 h-3.5 text-indigo-600" /> Background Removal & Ink Cleaning
                         </span>
-                        <span className="text-[11px] text-slate-500">Adjust if paper has shadows</span>
+                        <span className="text-[11px] text-slate-500">Auto-calibrated for paper scans</span>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1">
-                            <span>Paper Threshold</span>
-                            <span className="text-indigo-600 font-bold">{threshold}</span>
+                            <span>Paper Cleanliness</span>
+                            <span className="text-indigo-600 font-bold">{threshold}%</span>
                           </div>
                           <input
                             type="range"
-                            min="120"
-                            max="250"
+                            min="60"
+                            max="95"
                             value={threshold}
                             onChange={(e) => setThreshold(Number(e.target.value))}
                             className="w-full accent-indigo-600 cursor-pointer"
                           />
+                          <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                            <span>Gentle (60%)</span>
+                            <span>Aggressive (95%)</span>
+                          </div>
                         </div>
 
                         <div>
                           <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1">
-                            <span>Edge Feathering</span>
+                            <span>Edge Smoothness</span>
                             <span className="text-indigo-600 font-bold">{feather}px</span>
                           </div>
                           <input
                             type="range"
-                            min="10"
-                            max="60"
+                            min="8"
+                            max="35"
                             value={feather}
                             onChange={(e) => setFeather(Number(e.target.value))}
                             className="w-full accent-indigo-600 cursor-pointer"
                           />
+                          <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                            <span>Ultra Crisp (8px)</span>
+                            <span>Soft (35px)</span>
+                          </div>
                         </div>
                       </div>
 
                       {/* Ink Options */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80">
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-200/80">
                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={enhanceInk}
-                            onChange={(e) => setEnhanceInk(e.target.checked)}
+                            checked={removeSpecks}
+                            onChange={(e) => setRemoveSpecks(e.target.checked)}
                             className="rounded text-indigo-600 focus:ring-indigo-500"
                           />
-                          <span>Enhance ink contrast</span>
+                          <span>Remove dust & stray dots</span>
                         </label>
 
-                        {enhanceInk && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[11px] text-slate-500 mr-1">Ink Tone:</span>
-                            <button
-                              type="button"
-                              onClick={() => setInkColorMode('darken')}
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded ${inkColorMode === 'darken' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'}`}
-                            >
-                              Jet Black
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setInkColorMode('navy')}
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded ${inkColorMode === 'navy' ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-700'}`}
-                            >
-                              Executive Navy
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-semibold text-slate-500 mr-1">Ink Color:</span>
+                          <button
+                            type="button"
+                            onClick={() => setInkColorMode('navy')}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              inkColorMode === 'navy'
+                                ? 'bg-blue-900 text-white shadow-xs scale-105'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block shrink-0" />
+                            Executive Navy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInkColorMode('darken')}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              inkColorMode === 'darken'
+                                ? 'bg-slate-900 text-white shadow-xs scale-105'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full bg-slate-900 inline-block shrink-0" />
+                            Jet Black
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInkColorMode('royal')}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              inkColorMode === 'royal'
+                                ? 'bg-blue-600 text-white shadow-xs scale-105'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block shrink-0" />
+                            Royal Blue
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInkColorMode('original')}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              inkColorMode === 'original'
+                                ? 'bg-indigo-700 text-white shadow-xs scale-105'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            Original Pen
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
