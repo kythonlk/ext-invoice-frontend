@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight, Download, Settings, FileSignature } from 'lucide-react';
+import { Bell, Search, CheckCircle2, ShieldCheck, FileText, Menu, ChevronRight, Download, Settings, FileSignature, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { triggerPwaInstall } from './PwaInstallPrompt';
@@ -9,6 +9,25 @@ function Header({ user, title = "Approval workspace", onMenuClick, onOpenSetting
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(localStorage.getItem('selectedCompanyCode') || '0D0');
+
+  const fetchCompanies = async () => {
+    try {
+      const res = await api.get('/companies');
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setCompanies(res.data);
+        const saved = localStorage.getItem('selectedCompanyCode');
+        if (!saved || !res.data.some(c => c.CompanyCode === saved)) {
+          const def = res.data.find(c => c.IsDefault) || res.data[0];
+          setSelectedCompany(def.CompanyCode);
+          localStorage.setItem('selectedCompanyCode', def.CompanyCode);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch companies:", err);
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -23,10 +42,19 @@ function Header({ user, title = "Approval workspace", onMenuClick, onOpenSetting
   };
 
   useEffect(() => {
+    fetchCompanies();
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 15000); // refresh every 15s
     return () => clearInterval(interval);
   }, []);
+
+  const handleCompanyChange = (code) => {
+    setSelectedCompany(code);
+    localStorage.setItem('selectedCompanyCode', code);
+    window.dispatchEvent(new CustomEvent('focusx:company-changed', {
+      detail: { companyCode: code }
+    }));
+  };
 
   const handleOpenNotification = async (notification) => {
     if (!notification.IsRead) {
@@ -65,13 +93,33 @@ function Header({ user, title = "Approval workspace", onMenuClick, onOpenSetting
         </button>
         <div>
           <h1 className="text-base sm:text-lg font-extrabold text-slate-950 tracking-tight truncate">{title}</h1>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Focus ERP Sync Connected
+              Focus ERP Connected
             </span>
-            <span className="hidden xl:inline text-xs text-slate-400">•</span>
-            <span className="hidden xl:inline text-xs text-slate-500 font-medium">Focus80D0</span>
+            <span className="hidden sm:inline text-xs text-slate-400">•</span>
+
+            {/* Company Selector */}
+            <div className="flex items-center gap-1.5 bg-slate-100/90 border border-slate-200 hover:border-indigo-300 rounded-lg px-2 py-0.5 transition-all">
+              <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <select
+                value={selectedCompany}
+                onChange={(e) => handleCompanyChange(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer pr-1"
+                title="Select active ERP company"
+              >
+                {companies.length > 0 ? (
+                  companies.map(c => (
+                    <option key={c.CompanyCode} value={c.CompanyCode} className="text-slate-900 bg-white">
+                      {c.Name} ({c.CompanyCode})
+                    </option>
+                  ))
+                ) : (
+                  <option value="0D0">GOC (0D0)</option>
+                )}
+              </select>
+            </div>
           </div>
         </div>
       </div>

@@ -35,6 +35,11 @@ function ApprovedVouchers({ user }) {
 
   useEffect(() => {
     fetchApprovedVouchers();
+    const onCompanyChanged = () => {
+      fetchApprovedVouchers();
+    };
+    window.addEventListener('focusx:company-changed', onCompanyChanged);
+    return () => window.removeEventListener('focusx:company-changed', onCompanyChanged);
   }, []);
 
   const fetchApprovedVouchers = async () => {

@@ -117,6 +117,14 @@ function Dashboard({ user, onOpenSettings }) {
     fetchVouchers();
     fetchCostCenters();
     fetchWorkflows();
+
+    const onCompanyChanged = () => {
+      fetchVouchers();
+      fetchCostCenters();
+      fetchWorkflows();
+    };
+    window.addEventListener('focusx:company-changed', onCompanyChanged);
+    return () => window.removeEventListener('focusx:company-changed', onCompanyChanged);
   }, []);
 
   const handleUploadInvoice = async (e) => {

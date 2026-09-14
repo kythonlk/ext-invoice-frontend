@@ -2,14 +2,33 @@ import React, { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { getVoucherTypeLabel, VOUCHER_TYPE_OPTIONS } from '../lib/voucherTypes';
 import {
-  Users, Plus, Layers, Trash2, X, Search, UploadCloud, RefreshCw, CheckCircle2, Pencil
+  Users, Plus, Layers, Trash2, X, Search, UploadCloud, RefreshCw, CheckCircle2, Pencil,
+  Building2, Server, Database, Globe, Activity, Check, AlertCircle
 } from 'lucide-react';
 
 function Admin() {
-  const [activeTab, setActiveTab] = useState('workflows'); // 'workflows' | 'users' | 'restrictions' | 'erp-tester'
+  const [activeTab, setActiveTab] = useState('workflows'); // 'workflows' | 'users' | 'companies' | 'erp-tester'
   const [workflows, setWorkflows] = useState([]);
   const [users, setUsers] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
+
+  // Companies & ERP Connection state
+  const [companies, setCompanies] = useState([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    company_code: '',
+    erp_base_url: 'http://192.168.30.7:3101/Focus8API',
+    erp_db_name: '',
+    erp_db_conn: '',
+    is_active: true,
+  });
+  const [testingConnection, setTestingConnection] = useState({});
+  const [testResults, setTestResults] = useState({});
+  const [syncingCompany, setSyncingCompany] = useState({});
+  const [syncStatusMsg, setSyncStatusMsg] = useState(null);
 
   // Workflow Modal state
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
@@ -35,6 +54,109 @@ function Admin() {
 
   // Search filter
   const [userSearch, setUserSearch] = useState('');
+
+  const loadCompanies = async () => {
+    setLoadingCompanies(true);
+    try {
+      const res = await api.get('/companies');
+      setCompanies(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load companies:", err);
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
+
+  const handleTestConnection = async (companyCode) => {
+    setTestingConnection(prev => ({ ...prev, [companyCode]: true }));
+    try {
+      const res = await api.post(`/companies/${companyCode}/test-connection`);
+      setTestResults(prev => ({ ...prev, [companyCode]: res.data }));
+    } catch (err) {
+      setTestResults(prev => ({
+        ...prev,
+        [companyCode]: {
+          db_connected: false,
+          db_message: err.response?.data?.error || err.message,
+          erp_api_connected: false,
+          erp_api_message: "Connection failed",
+        }
+      }));
+    } finally {
+      setTestingConnection(prev => ({ ...prev, [companyCode]: false }));
+    }
+  };
+
+  const handleSyncCompany = async (companyCode) => {
+    setSyncingCompany(prev => ({ ...prev, [companyCode]: true }));
+    setSyncStatusMsg(`Sync initiated for company ${companyCode}... Fetching users, cost centers, and vouchers.`);
+    try {
+      await api.post(`/companies/${companyCode}/sync`);
+      setTimeout(() => {
+        loadData();
+        loadCompanies();
+        setSyncStatusMsg(`Sync completed for ${companyCode}! Data updated.`);
+      }, 3000);
+    } catch (err) {
+      setSyncStatusMsg(`Sync failed for ${companyCode}: ${err.message}`);
+    } finally {
+      setSyncingCompany(prev => ({ ...prev, [companyCode]: false }));
+    }
+  };
+
+  const handleSyncAll = async () => {
+    setSyncStatusMsg("Full multi-company synchronization started in background...");
+    try {
+      await api.post('/companies/sync-all');
+      setTimeout(() => {
+        loadCompanies();
+        loadData();
+        setSyncStatusMsg("Full multi-company synchronization finished! All data updated.");
+      }, 4000);
+    } catch (err) {
+      setSyncStatusMsg("Sync all failed: " + err.message);
+    }
+  };
+
+  const handleOpenEditCompany = (comp) => {
+    if (comp) {
+      setEditingCompany(comp);
+      setCompanyForm({
+        name: comp.Name || '',
+        company_code: comp.CompanyCode || '',
+        erp_base_url: comp.ERPBaseURL || 'http://192.168.30.7:3101/Focus8API',
+        erp_db_name: comp.ERPDBName || ('Focus8' + comp.CompanyCode),
+        erp_db_conn: comp.ERPDBConn || '',
+        is_active: comp.IsActive !== false,
+      });
+    } else {
+      setEditingCompany(null);
+      setCompanyForm({
+        name: '',
+        company_code: '',
+        erp_base_url: 'http://192.168.30.7:3101/Focus8API',
+        erp_db_name: '',
+        erp_db_conn: '',
+        is_active: true,
+      });
+    }
+    setShowCompanyModal(true);
+  };
+
+  const handleSaveCompany = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingCompany) {
+        await api.put(`/companies/${editingCompany.CompanyCode}`, companyForm);
+      } else {
+        await api.post('/companies', companyForm);
+      }
+      setShowCompanyModal(false);
+      loadCompanies();
+    } catch (err) {
+      alert("Failed to save company: " + (err.response?.data?.error || err.message));
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -243,6 +365,14 @@ function Admin() {
             }`}
           >
             <Users className="w-4 h-4" /> Users ({users.length})
+          </button>
+          <button
+            onClick={() => { setActiveTab('companies'); loadCompanies(); }}
+            className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'companies' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Building2 className="w-4 h-4" /> Companies & ERP ({companies.length})
           </button>
           <button
             onClick={() => setActiveTab('erp-tester')}
@@ -587,6 +717,181 @@ function Admin() {
         </div>
       )}
 
+      {/* TAB 4: COMPANIES & MULTI-ERP CONNECTIONS */}
+      {activeTab === 'companies' && (
+        <div className="space-y-6">
+          {/* Top Banner */}
+          <div className="erp-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                Focus ERP Companies & Databases
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                Configure ERP API endpoints and MSSQL database mappings for each company/subsidiary. Test connections live and synchronize users, cost centers, and vouchers per company.
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleSyncAll}
+                className="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"
+                title="Synchronize all active companies from Focus8Erp"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Sync All Companies</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenEditCompany(null)}
+                className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Company</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sync Status Banner */}
+          {syncStatusMsg && (
+            <div className="p-4 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-indigo-600 animate-spin" />
+                <span>{syncStatusMsg}</span>
+              </div>
+              <button onClick={() => setSyncStatusMsg(null)} className="text-indigo-500 hover:text-indigo-800">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Companies Table */}
+          <div className="erp-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200/80 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3 px-4">Company / Entity</th>
+                    <th className="py-3 px-4">Database</th>
+                    <th className="py-3 px-4">ERP API Base URL</th>
+                    <th className="py-3 px-4">Live Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {companies.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 italic">
+                        {loadingCompanies ? "Loading company registry..." : "No companies found. Click 'Sync All Companies' to discover from Focus8Erp."}
+                      </td>
+                    </tr>
+                  ) : (
+                    companies.map((comp) => {
+                      const testRes = testResults[comp.CompanyCode];
+                      const isTesting = testingConnection[comp.CompanyCode];
+                      const isSyncing = syncingCompany[comp.CompanyCode];
+
+                      return (
+                        <tr key={comp.CompanyCode} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900">
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
+                                {comp.CompanyCode}
+                              </span>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900">{comp.Name}</span>
+                                  {comp.IsDefault && (
+                                    <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-mono">Code: {comp.CompanyCode}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1.5 font-mono text-slate-700 font-semibold">
+                              <Database className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{comp.ERPDBName || ('Focus8' + comp.CompanyCode)}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1.5 font-mono text-slate-600 text-[11px]">
+                              <Globe className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="truncate max-w-xs">{comp.ERPBaseURL || 'http://192.168.30.7:3101/Focus8API'}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            {testRes ? (
+                              <div className="space-y-1 text-[11px]">
+                                <div className="flex items-center gap-1">
+                                  <span className={`w-2 h-2 rounded-full ${testRes.db_connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                  <span className={testRes.db_connected ? 'text-emerald-700 font-semibold' : 'text-rose-600 font-semibold'}>
+                                    DB: {testRes.db_connected ? 'OK' : 'Error'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className={`w-2 h-2 rounded-full ${testRes.erp_api_connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                  <span className={testRes.erp_api_connected ? 'text-emerald-700 font-semibold' : 'text-rose-600 font-semibold'}>
+                                    API: {testRes.erp_api_connected ? 'OK' : 'Error'}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">Not tested</span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleTestConnection(comp.CompanyCode)}
+                                disabled={isTesting}
+                                className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                title="Test database and API connection"
+                              >
+                                <Activity className={`w-3 h-3 text-indigo-600 ${isTesting ? 'animate-spin' : ''}`} />
+                                <span>{isTesting ? 'Testing...' : 'Test'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleSyncCompany(comp.CompanyCode)}
+                                disabled={isSyncing}
+                                className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                title="Sync users, cost centers, and vouchers for this company"
+                              >
+                                <RefreshCw className={`w-3 h-3 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
+                                <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditCompany(comp)}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                                title="Edit Company Config"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Workflow Modal */}
       {showWorkflowModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -763,6 +1068,119 @@ function Admin() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit/Create Company Modal */}
+      {showCompanyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto w-full p-4 sm:p-6 border border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {editingCompany ? `Edit Company: ${editingCompany.CompanyCode}` : 'Register New Company & ERP'}
+                </h3>
+              </div>
+              <button onClick={() => setShowCompanyModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCompany} className="py-4 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Company Code (Focus ERP ID)</label>
+                <input
+                  type="text"
+                  required
+                  disabled={!!editingCompany}
+                  value={companyForm.company_code}
+                  onChange={(e) => setCompanyForm({ ...companyForm, company_code: e.target.value })}
+                  placeholder="e.g. 010, 040, 0D0"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100 disabled:text-slate-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">3-character Focus ERP company identifier (e.g., 0D0).</p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Company Display Name</label>
+                <input
+                  type="text"
+                  required
+                  value={companyForm.name}
+                  onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+                  placeholder="e.g. GOC or Fixperts"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Focus8API Base URL</label>
+                <input
+                  type="text"
+                  required
+                  value={companyForm.erp_base_url}
+                  onChange={(e) => setCompanyForm({ ...companyForm, erp_base_url: e.target.value })}
+                  placeholder="http://192.168.30.7:3101/Focus8API"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">ERP MSSQL Database Name</label>
+                <input
+                  type="text"
+                  required
+                  value={companyForm.erp_db_name}
+                  onChange={(e) => setCompanyForm({ ...companyForm, erp_db_name: e.target.value })}
+                  placeholder="e.g. Focus80D0 or Focus8010"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Direct database name in SQL Server on port 1433.</p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Custom MSSQL DSN (Optional)</label>
+                <input
+                  type="text"
+                  value={companyForm.erp_db_conn || ''}
+                  onChange={(e) => setCompanyForm({ ...companyForm, erp_db_conn: e.target.value })}
+                  placeholder="sqlserver://sa:P%40ssw0rd@192.168.30.7:1433?database=... (Leave blank to use default server)"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Leave empty to use default SQL server host with the specified Database Name above.</p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="comp_is_active"
+                  checked={companyForm.is_active}
+                  onChange={(e) => setCompanyForm({ ...companyForm, is_active: e.target.checked })}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                />
+                <label htmlFor="comp_is_active" className="font-bold text-slate-700 cursor-pointer">
+                  Company is Active (Visible in selector & included in sync)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCompanyModal(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-500/20 transition-all"
+                >
+                  {editingCompany ? 'Save Changes' : 'Create Company'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
