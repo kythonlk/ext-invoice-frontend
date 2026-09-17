@@ -535,7 +535,9 @@ function Admin() {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-4">User</th>
+                    <th className="py-3 px-4">User Key (ERP)</th>
                     <th className="py-3 px-4">Login Name</th>
+                    <th className="py-3 px-4">Company</th>
                     <th className="py-3 px-4">Focus User ID</th>
                     <th className="py-3 px-4">System Role</th>
                     <th className="py-3 px-4 text-right">Actions</th>
@@ -550,12 +552,22 @@ function Admin() {
                         </div>
                         <div>
                           <p>{u.Username || u.LoginName}</p>
-                          {u.LoginName === 'su' && (
+                          {(u.LoginName === 'su' || (u.UserKey && u.UserKey.endsWith('_su'))) && (
                             <span className="text-[10px] text-amber-600 font-bold">Superuser Root</span>
                           )}
                         </div>
                       </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-700">
+                        <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200/60 rounded-md">
+                          {u.UserKey || u.user_key || `${u.CompanyID || u.company_id || '8' + (u.CompanyCode || u.company_code)}_${u.LoginName}`}
+                        </span>
+                      </td>
                       <td className="py-3.5 px-4 text-slate-600 font-medium">{u.LoginName}</td>
+                      <td className="py-3.5 px-4 text-slate-600 font-medium">
+                        <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] font-bold">
+                          {u.CompanyCode || u.company_code || '0D0'}
+                        </span>
+                      </td>
                       <td className="py-3.5 px-4 text-slate-600 font-mono">{u.FocusUserID}</td>
                       <td className="py-3.5 px-4">
                         <select

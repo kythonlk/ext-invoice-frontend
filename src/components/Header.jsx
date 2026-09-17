@@ -100,25 +100,26 @@ function Header({ user, title = "Approval workspace", onMenuClick, onOpenSetting
             </span>
             <span className="hidden sm:inline text-xs text-slate-400">•</span>
 
-            {/* Company Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-100/90 border border-slate-200 hover:border-indigo-300 rounded-lg px-2 py-0.5 transition-all">
+            {/* Active Company Display Badge */}
+            <div className="flex items-center gap-1.5 bg-indigo-50/90 border border-indigo-200/80 rounded-lg px-2.5 py-0.5 shadow-2xs">
               <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <select
-                value={selectedCompany}
-                onChange={(e) => handleCompanyChange(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer pr-1"
-                title="Select active ERP company"
+              <span className="text-xs font-extrabold text-indigo-950 truncate max-w-[180px] sm:max-w-xs">
+                {companies.find(c => c.CompanyCode === (user.CompanyCode || user.company_code || selectedCompany))?.Name || user.company_name || 'ERP Company'} ({user.CompanyCode || user.company_code || selectedCompany})
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("To switch company, please log in with your credentials for that company. Continue to sign in?")) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/login';
+                  }
+                }}
+                className="ml-1 text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                title="Switch ERP company"
               >
-                {companies.length > 0 ? (
-                  companies.map(c => (
-                    <option key={c.CompanyCode} value={c.CompanyCode} className="text-slate-900 bg-white">
-                      {c.Name} ({c.CompanyCode})
-                    </option>
-                  ))
-                ) : (
-                  <option value="0D0">GOC (0D0)</option>
-                )}
-              </select>
+                Switch
+              </button>
             </div>
           </div>
         </div>
