@@ -8,7 +8,7 @@ import {
   Layers, DollarSign, Clock, ShieldCheck, Eye, X, RefreshCw,
   Package, ReceiptText, History, Paperclip, Loader2, Info,
   UploadCloud, PlusCircle, ChevronRight, Pencil, FileSignature, FileCheck2,
-  ChevronLeft, ChevronUp, ChevronDown, Hourglass
+  ChevronLeft, ChevronUp, ChevronDown, Hourglass, User
 } from 'lucide-react';
 
 const resolveDocumentUrl = (url) => {
@@ -321,7 +321,7 @@ function Dashboard({ user, onOpenSettings }) {
   }, [searchQuery, selectedType]);
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 max-w-[1500px] mx-auto space-y-6 sm:space-y-8">
+    <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 mx-auto space-y-6 sm:space-y-8">
       <section className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-950">Good to see you, {(user.Username || user.LoginName || 'there').split(' ')[0]}</h2>
@@ -540,11 +540,15 @@ function Dashboard({ user, onOpenSettings }) {
                   >
                     <td className="px-2 py-4 align-top">
                       <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0 mt-0.5 border border-indigo-100/50 group-hover/row:bg-indigo-100/80 transition-colors">
+                        <div className="bg-indigo-50 text-indigo-600 rounded-xl shrink-0 mt-0.5 border border-indigo-100/50 group-hover/row:bg-indigo-100/80 transition-colors">
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
                           <span className="font-extrabold text-slate-900 group-hover/row:text-indigo-700 transition-colors text-[15px]">{v.VoucherNo}</span>
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                            <User className="w-3 h-3 text-slate-400" />
+                            <span className="font-medium text-slate-700">{v.CreatedByName || `User ${v.CreatedBy}`}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -552,13 +556,20 @@ function Dashboard({ user, onOpenSettings }) {
                       <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 inline-block mb-1">
                         {getVoucherType(v.VoucherType)?.code || v.VoucherType}
                       </span>
-                      <div className="text-[11px] text-slate-500">{v.VoucherTypeLabel || getVoucherTypeLabel(v.VoucherType)}</div>
+                      <div className="text-[11px] mt-1 text-slate-500">{v.VoucherTypeLabel || getVoucherTypeLabel(v.VoucherType)}</div>
                     </td>
                     <td className="px-2 py-4 align-top">
                       {v.CostCenterID > 0 ? (
-                        <span className="px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100 inline-block">
-                          #{v.CostCenterID}
-                        </span>
+                        <div>
+                          <span className="px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100 inline-block mb-1">
+                            #{v.CostCenterID}
+                          </span>
+                          <div className="w-0 pt-1 overflow-visible relative z-10">
+                            <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                              {costCenterLabel(v).replace(/^Cost center #\d+$/, 'Unknown Name')}
+                            </div>
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400 font-medium">—</span>
                       )}
@@ -842,9 +853,57 @@ function Dashboard({ user, onOpenSettings }) {
                     </div>
                   ) : <div className="h-64 flex flex-col items-center justify-center text-center"><Package className="w-9 h-9 text-slate-300 mb-3" /><p className="font-bold text-slate-700">No inventory item rows</p><p className="text-xs text-slate-400 mt-1">This voucher may contain accounting entries only.</p></div>
                 ) : detailTab === 'accounts' ? (
-                  voucherDetails?.ledger_entries?.length ? (
-                    <div className="erp-card overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Account</th><th className="px-4 py-3 text-right">Debit</th><th className="px-4 py-3 text-right">Credit</th></tr></thead><tbody className="divide-y divide-slate-100">{voucherDetails.ledger_entries.map((entry, index) => (<tr key={entry.body_id} className="hover:bg-indigo-50/30"><td className="px-4 py-3 text-slate-400">{index + 1}</td><td className="px-4 py-3"><p className="font-bold text-slate-900">{entry.account_name || 'Unspecified account'}</p><p className="text-[10px] text-slate-400 mt-0.5">{entry.account_code || 'No account code'}</p></td><td className="px-4 py-3 text-right font-semibold">{Number(entry.amount_1 || 0) ? `AED ${Number(entry.amount_1).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</td><td className="px-4 py-3 text-right font-semibold">{Number(entry.amount_2 || 0) ? `AED ${Number(entry.amount_2).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</td></tr>))}</tbody><tfoot className="bg-slate-50 border-t border-slate-200 font-extrabold text-slate-900"><tr><td colSpan="2" className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right">AED {voucherDetails.ledger_entries.reduce((total, entry) => total + Number(entry.amount_1 || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td className="px-4 py-3 text-right">AED {voucherDetails.ledger_entries.reduce((total, entry) => total + Number(entry.amount_2 || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr></tfoot></table></div></div>
-                  ) : <div className="h-64 flex items-center justify-center text-sm text-slate-400">No accounting rows available.</div>
+                  (() => {
+                    const postings = (voucherDetails?.ledger_entries || []).filter((entry) =>
+                      Number(entry.amount_1 || 0) !== 0 || Number(entry.amount_2 || 0) !== 0
+                    );
+                    const debitTotal = postings.reduce((total, entry) => total + Math.abs(Number(entry.amount_1 || 0)), 0);
+                    const creditTotal = postings.reduce((total, entry) => total + Math.abs(Number(entry.amount_2 || 0)), 0);
+                    const formatAmount = (amount) => `AED ${Math.abs(Number(amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                    return postings.length ? (
+                      <div className="erp-card overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[620px] text-left text-xs">
+                            <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                              <tr>
+                                <th className="px-5 py-3 text-center">Debit</th>
+                                <th className="px-5 py-3 text-center">Credit</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {postings.map((entry) => (
+                                <tr key={entry.body_id} className="hover:bg-indigo-50/30 align-top">
+                                  <td className="w-1/2 px-5 py-3">
+                                    {Number(entry.amount_1 || 0) !== 0 && (
+                                      <div className="flex items-start justify-between gap-4">
+                                        <span className="font-bold text-slate-900">{entry.account_name || 'Unspecified account'}</span>
+                                        <span className="shrink-0 font-semibold text-slate-800">{formatAmount(entry.amount_1)}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="w-1/2 px-5 py-3 border-l border-slate-100">
+                                    {Number(entry.amount_2 || 0) !== 0 && (
+                                      <div className="flex items-start justify-between gap-4">
+                                        <span className="font-bold text-slate-900">{entry.credit_account_name || entry.account_name || 'Unspecified account'}</span>
+                                        <span className="shrink-0 font-semibold text-slate-800">{formatAmount(entry.amount_2)}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200 font-extrabold text-slate-900">
+                              <tr>
+                                <td className="px-5 py-3 text-right">{formatAmount(debitTotal)}</td>
+                                <td className="px-5 py-3 text-right border-l border-slate-200">{formatAmount(creditTotal)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    ) : <div className="h-64 flex items-center justify-center text-sm text-slate-400">No accounting rows available.</div>;
+                  })()
                 ) : detailTab === 'document' ? (
                   detailVoucher.DocumentURL ? (
                     detailVoucher.DocumentURL.toLowerCase().split('?')[0].endsWith('.pdf')
