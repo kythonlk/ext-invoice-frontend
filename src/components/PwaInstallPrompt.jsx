@@ -10,7 +10,11 @@ import {
   CheckCircle2, 
   Share, 
   PlusSquare,
-  ArrowDownToLine
+  MoreVertical,
+  Copy,
+  Check,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 
 export function triggerPwaInstall() {
@@ -21,8 +25,9 @@ export default function PwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const [platform, setPlatform] = useState('android'); // 'android' | 'ios' | 'desktop'
   const [installSuccess, setInstallSuccess] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // Check if already in standalone / installed mode
@@ -36,10 +41,15 @@ export default function PwaInstallPrompt() {
       return;
     }
 
-    // Detect iOS
+    // Detect Platform
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isAppleMobile = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isAppleMobile);
+    if (/iphone|ipad|ipod/.test(userAgent)) {
+      setPlatform('ios');
+    } else if (/android/.test(userAgent)) {
+      setPlatform('android');
+    } else {
+      setPlatform('desktop');
+    }
 
     // Capture beforeinstallprompt
     const handleBeforeInstallPrompt = (e) => {
@@ -92,12 +102,13 @@ export default function PwaInstallPrompt() {
         setDeferredPrompt(null);
         setTimeout(() => setInstallSuccess(false), 4000);
       }
-    } else if (isIOS) {
-      // Keep open showing the iOS step-by-step instructions
-    } else {
-      // Fallback for browsers that don't support beforeinstallprompt directly
-      alert('To install FocusFlow, look for the Install icon (⊕ or 💻) in your browser address bar, or use the browser menu (⋮) -> "Install FocusFlow".');
     }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleDismiss = () => {
@@ -129,16 +140,16 @@ export default function PwaInstallPrompt() {
         )}
       </AnimatePresence>
 
-      {/* Onload Install Modal / Card */}
+      {/* Install Modal */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 24 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 24 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 text-white rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 text-white rounded-3xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col"
             >
               {/* Decorative Accent Glow */}
               <div className="absolute -top-24 -left-24 w-56 h-56 bg-indigo-600/30 rounded-full blur-3xl pointer-events-none" />
@@ -153,10 +164,10 @@ export default function PwaInstallPrompt() {
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="relative p-6 sm:p-8">
+              <div className="relative p-5 sm:p-7 overflow-y-auto">
                 {/* Header with App Logo */}
-                <div className="flex items-start gap-4 mb-5">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 p-2.5 shadow-xl shadow-indigo-600/30 shrink-0 flex items-center justify-center border border-indigo-400/30">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 p-2 shadow-xl shadow-indigo-600/30 shrink-0 flex items-center justify-center border border-indigo-400/30">
                     <img 
                       src="/pwa-192x192.png" 
                       alt="FocusFlow Icon" 
@@ -166,100 +177,198 @@ export default function PwaInstallPrompt() {
                       }} 
                     />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 pr-6">
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        Official App
+                        PWA App
                       </span>
-                      <span className="text-xs text-slate-400">• Ready to Download</span>
+                      <span className="text-xs text-slate-400">• Mobile & Desktop</span>
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1">
-                      Install FocusFlow App
+                    <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight mt-1">
+                      Install FocusFlow
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-300/80 mt-0.5">
-                      Focus ERP Invoice Approval Workspace
+                    <p className="text-xs text-slate-300/80">
+                      Add to your home screen for full-screen app experience
                     </p>
                   </div>
                 </div>
 
-                {/* Description */}
-                <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                  Install FocusFlow directly to your desktop or mobile device for instant access, offline resilience, and rapid one-click invoice approvals.
-                </p>
+                {/* Platform Selector Tabs */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-800/90 rounded-2xl border border-slate-700/60 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setPlatform('android')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all ${
+                      platform === 'android'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>Android</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlatform('ios')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all ${
+                      platform === 'ios'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>iPhone / iOS</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlatform('desktop')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all ${
+                      platform === 'desktop'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    <span>PC / Mac</span>
+                  </button>
+                </div>
 
-                {/* Feature Highlights Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                  <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex sm:flex-col items-center sm:items-start gap-3 text-left">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                      <Zap className="w-4 h-4" />
+                {/* Instructions Card based on Platform */}
+                {platform === 'android' && (
+                  <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 mb-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-extrabold text-indigo-200 flex items-center gap-1.5">
+                        <Smartphone className="w-4 h-4 text-indigo-400" />
+                        How to install on Android (Chrome / Edge / Brave):
+                      </p>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-200">Instant Launch</h4>
-                      <p className="text-[11px] text-slate-400">Opens without browser chrome</p>
+                    <div className="space-y-2.5 text-xs text-slate-200">
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                        <div>
+                          <span>Tap the <strong>browser menu (3 dots)</strong></span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 mx-1 bg-slate-800 rounded border border-slate-700 text-indigo-300 font-bold">
+                            <MoreVertical className="w-3.5 h-3.5 inline" />
+                          </span>
+                          <span>in the top right corner.</span>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                        <div>
+                          <span>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</span>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                        <div>
+                          <span>Tap <strong>"Install"</strong>. FocusFlow will appear as an app on your home screen!</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-indigo-500/20 text-[11px] text-slate-400">
+                      💡 <em>Note: If opened inside an in-app browser (like WhatsApp), tap the 3 dots and choose <strong>"Open in Chrome"</strong> first.</em>
                     </div>
                   </div>
+                )}
 
-                  <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex sm:flex-col items-center sm:items-start gap-3 text-left">
-                    <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-200">ERP Sync</h4>
-                      <p className="text-[11px] text-slate-400">Real-time secure database link</p>
+                {platform === 'ios' && (
+                  <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 mb-4 space-y-3">
+                    <p className="text-xs font-extrabold text-indigo-200 flex items-center gap-1.5">
+                      <Smartphone className="w-4 h-4 text-indigo-400" />
+                      How to install on iPhone / iPad (Safari):
+                    </p>
+                    <div className="space-y-2.5 text-xs text-slate-200">
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                        <div>
+                          <span>Tap the <strong>Share button</strong></span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 mx-1 bg-slate-800 rounded border border-slate-700 text-indigo-300 font-bold">
+                            <Share className="w-3.5 h-3.5 inline" />
+                          </span>
+                          <span>at the bottom of Safari.</span>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                        <div>
+                          <span>Scroll down and tap <strong>"Add to Home Screen"</strong></span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 mx-1 bg-slate-800 rounded border border-slate-700 text-indigo-300 font-bold">
+                            <PlusSquare className="w-3.5 h-3.5 inline" />
+                          </span>
+                          <span>.</span>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                        <div>
+                          <span>Tap <strong>"Add"</strong> in the top-right corner.</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex sm:flex-col items-center sm:items-start gap-3 text-left">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                      <Monitor className="w-4 h-4" />
+                {platform === 'desktop' && (
+                  <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 mb-4 space-y-3">
+                    <p className="text-xs font-extrabold text-indigo-200 flex items-center gap-1.5">
+                      <Monitor className="w-4 h-4 text-indigo-400" />
+                      How to install on Chrome / Edge (Desktop):
+                    </p>
+                    <div className="space-y-2 text-xs text-slate-200">
+                      <p>
+                        Look for the <strong>Install icon (⊕ or 💻)</strong> on the right side of the browser address bar, or click the browser menu (<strong>⋮</strong>) &rarr; <strong>"Install FocusFlow"</strong>.
+                      </p>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-200">Multi-Device</h4>
-                      <p className="text-[11px] text-slate-400">Desktop, Android & iOS</p>
-                    </div>
+                  </div>
+                )}
+
+                {/* Features strip */}
+                <div className="grid grid-cols-3 gap-2 mb-5">
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/40 text-center">
+                    <Zap className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+                    <p className="text-[11px] font-bold text-slate-200">Fast Launch</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/40 text-center">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
+                    <p className="text-[11px] font-bold text-slate-200">Full Screen</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/40 text-center">
+                    <Globe className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+                    <p className="text-[11px] font-bold text-slate-200">Live Sync</p>
                   </div>
                 </div>
 
-                {/* iOS Guidance if detected */}
-                {isIOS ? (
-                  <div className="p-4 rounded-2xl bg-indigo-950/50 border border-indigo-500/30 mb-6 space-y-2.5">
-                    <p className="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
-                      <Smartphone className="w-4 h-4 text-indigo-400" /> How to install on iOS Safari:
-                    </p>
-                    <div className="space-y-1.5 text-xs text-indigo-100/90">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-indigo-500/30 font-bold flex items-center justify-center text-[10px]">1</span>
-                        <span>Tap the <strong>Share button</strong> (<Share className="w-3.5 h-3.5 inline text-indigo-300" />) at the bottom toolbar.</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-indigo-500/30 font-bold flex items-center justify-center text-[10px]">2</span>
-                        <span>Scroll and select <strong>"Add to Home Screen"</strong> (<PlusSquare className="w-3.5 h-3.5 inline text-indigo-300" />).</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-indigo-500/30 font-bold flex items-center justify-center text-[10px]">3</span>
-                        <span>Tap <strong>"Add"</strong> in the top-right corner.</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="w-full sm:w-auto px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white rounded-2xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? 'Link Copied!' : 'Copy App Link'}</span>
+                  </button>
 
-                {/* Actions */}
-                <div className="flex flex-col-reverse sm:flex-row items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleDismiss}
-                    className="w-full sm:w-auto px-5 py-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white transition-colors text-center"
-                  >
-                    Maybe Later
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleInstallClick}
-                    className="w-full sm:flex-1 flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-2xl shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download / Install App</span>
-                  </button>
+                  {deferredPrompt ? (
+                    <button
+                      type="button"
+                      onClick={handleInstallClick}
+                      className="w-full sm:flex-1 flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-2xl shadow-xl shadow-indigo-600/30 transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Install App Now</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleDismiss}
+                      className="w-full sm:flex-1 flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-2xl shadow-xl shadow-indigo-600/30 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-indigo-200" />
+                      <span>Got It, I'll Add to Home Screen</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
