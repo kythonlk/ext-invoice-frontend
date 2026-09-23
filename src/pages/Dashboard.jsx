@@ -91,6 +91,24 @@ function Dashboard({ user, onOpenSettings }) {
     user.FocusUserID === 1
   );
 
+  const [showManualVoucherCreation, setShowManualVoucherCreation] = useState(
+    () => localStorage.getItem('showManualVoucherCreation') === 'true'
+  );
+
+  // Listen to local storage changes to re-render when settings are saved
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setShowManualVoucherCreation(localStorage.getItem('showManualVoucherCreation') === 'true');
+    };
+    window.addEventListener('storage', handleStorageChange);
+    // Custom event for same-tab updates
+    window.addEventListener('settingsUpdated', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('settingsUpdated', handleStorageChange);
+    };
+  }, []);
+
   const fetchVouchers = async () => {
     try {
       setLoading(true);
@@ -327,7 +345,7 @@ function Dashboard({ user, onOpenSettings }) {
           <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-950">Good to see you, {(user.Username || user.LoginName || 'there').split(' ')[0]}</h2>
         </div>
         <div className="flex items-center gap-3">
-          {isSuperUser && (
+          {isSuperUser && showManualVoucherCreation && (
             <button
               onClick={() => setShowUploadModal(true)}
               className="inline-flex w-fit items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 hover:shadow-md"
@@ -474,7 +492,7 @@ function Dashboard({ user, onOpenSettings }) {
             />
           </div>
 
-          {isSuperUser && (
+          {isSuperUser && showManualVoucherCreation && (
             <button
               type="button"
               onClick={() => navigate('/create-voucher')}

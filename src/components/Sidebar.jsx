@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, LogOut, FileSignature, ShieldCheck, X, FilePlus2, Download, Settings, FileCheck2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -13,6 +13,22 @@ function Sidebar({ user, onLogout, isOpen, onClose, onOpenSettings }) {
     user.login_name === 'su' ||
     user.LoginName === 'su' ||
     user.FocusUserID === 1;
+
+  const [showManualVoucherCreation, setShowManualVoucherCreation] = useState(
+    () => localStorage.getItem('showManualVoucherCreation') === 'true'
+  );
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setShowManualVoucherCreation(localStorage.getItem('showManualVoucherCreation') === 'true');
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('settingsUpdated', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('settingsUpdated', handleStorageChange);
+    };
+  }, []);
 
   return (
     <>
@@ -87,8 +103,8 @@ function Sidebar({ user, onLogout, isOpen, onClose, onOpenSettings }) {
               </span>
             </NavLink>
 
-            {/* Create Voucher - Only for Superuser */}
-            {isSuperUser && (
+            {/* Create Voucher - Only for Superuser when enabled */}
+            {isSuperUser && showManualVoucherCreation && (
               <NavLink
                 to="/create-voucher"
                 onClick={onClose}

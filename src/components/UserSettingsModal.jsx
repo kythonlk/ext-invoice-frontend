@@ -35,6 +35,27 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const isSuperUser = user && (
+    user.role === 'superuser' || 
+    user.Role === 'superuser' || 
+    user.role === 'admin' || 
+    user.Role === 'admin' || 
+    user.login_name === 'su' || 
+    user.LoginName === 'su' || 
+    user.FocusUserID === 1
+  );
+
+  const [showManualVoucherCreation, setShowManualVoucherCreation] = useState(
+    () => localStorage.getItem('showManualVoucherCreation') === 'true'
+  );
+
+  const toggleManualVoucherCreation = () => {
+    const newVal = !showManualVoucherCreation;
+    setShowManualVoucherCreation(newVal);
+    localStorage.setItem('showManualVoucherCreation', newVal);
+    window.dispatchEvent(new Event('settingsUpdated'));
+  };
+
   // Current user's existing signature
   const [currentSignUrl, setCurrentSignUrl] = useState(user?.ESignURL || user?.e_sign_url || '');
 
@@ -654,6 +675,34 @@ export default function UserSettingsModal({ user, isOpen, onClose, onUserUpdated
               )}
             </div>
           </div>
+
+          {/* Superuser System Preferences */}
+          {isSuperUser && (
+            <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-slate-500" />
+                <h3 className="text-sm font-bold text-slate-800">System Preferences</h3>
+              </div>
+              <div className="flex items-center justify-between py-2 border-t border-slate-100">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Enable Manual Voucher Creation</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Show the "New Voucher" / "Upload Invoice" buttons on the dashboard.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleManualVoucherCreation}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showManualVoucherCreation ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                  role="switch"
+                  aria-checked={showManualVoucherCreation}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showManualVoucherCreation ? 'translate-x-5' : 'translate-x-0'}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Current Saved Signature Preview */}
           {currentSignUrl && (
