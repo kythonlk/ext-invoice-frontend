@@ -3,6 +3,7 @@ export const VOUCHER_TYPES = {
   771: { id: 771, code: 'DEV', name: 'Direct Expense Voucher' },
   2570: { id: 2570, code: 'CEB', name: 'Cash Expense Booking' },
   768: { id: 768, code: 'PUV', name: 'Purchases Vouchers' },
+  2560: { id: 2560, code: 'LPO', name: 'Local Purchases Orders' },
 };
 
 export const VOUCHER_TYPE_OPTIONS = Object.values(VOUCHER_TYPES);

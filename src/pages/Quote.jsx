@@ -31,7 +31,7 @@ const formatErpDate = (d) => {
   return String(d);
 };
 
-function Dashboard({ user, onOpenSettings }) {
+function Quote({ user, onOpenSettings }) {
   const navigate = useNavigate();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,12 +61,13 @@ function Dashboard({ user, onOpenSettings }) {
   // Invoice Upload States
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [costCenters, setCostCenters] = useState([]);
-  const [uploadModule, setUploadModule] = useState('1281');
+  const [uploadModule, setUploadModule] = useState('2560');
   const [uploadVoucherNo, setUploadVoucherNo] = useState('');
   const [uploadAmount, setUploadAmount] = useState('');
   const [uploadCostCenter, setUploadCostCenter] = useState('');
   const [uploadRemarks, setUploadRemarks] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
+  const [referenceFiles, setReferenceFiles] = useState([]);
   const [uploadSubmitting, setUploadSubmitting] = useState(false);
   const [uploadMessage, setUploadMessage] = useState(null);
 
@@ -112,8 +113,8 @@ function Dashboard({ user, onOpenSettings }) {
   const fetchVouchers = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/vouchers/pending?exclude_type=2560');
-      setVouchers(Array.isArray(res.data) ? res.data.filter(v => String(v.VoucherType) !== '2560') : []);
+      const res = await api.get('/vouchers/pending?voucher_type=2560');
+      setVouchers(Array.isArray(res.data) ? res.data.filter(v => String(v.VoucherType) === '2560') : []);
     } catch (err) {
       console.error(err);
       setVouchers([]);
@@ -175,6 +176,9 @@ function Dashboard({ user, onOpenSettings }) {
       formData.append('cost_center_id', uploadCostCenter || 0);
       formData.append('remarks', uploadRemarks);
       formData.append('file', uploadFile);
+      referenceFiles.forEach((f) => {
+        formData.append('reference_files', f);
+      });
 
       await api.post('/vouchers/create-with-document', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -331,7 +335,7 @@ function Dashboard({ user, onOpenSettings }) {
 
   // Calculate statistics
   const totalAmount = vouchers.reduce((acc, curr) => acc + (curr.NetAmount || 0), 0);
-  const voucherTypesCount = new Set(vouchers.map(v => v.VoucherType)).size;
+  const lpoWorkflows = workflows.filter(wf => String(wf.VoucherType) === '2560' || String(wf.VoucherType) === '0');
 
   // Reset page when search or type changes
   useEffect(() => {
@@ -342,7 +346,7 @@ function Dashboard({ user, onOpenSettings }) {
     <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 mx-auto space-y-6 sm:space-y-8">
       <section className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-950">Good to see you, {(user.Username || user.LoginName || 'there').split(' ')[0]}</h2>
+          <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-950">LPO Quotes & Approvals</h2>
         </div>
         <div className="flex items-center gap-3">
           {isSuperUser && showManualVoucherCreation && (
@@ -350,7 +354,7 @@ function Dashboard({ user, onOpenSettings }) {
               onClick={() => setShowUploadModal(true)}
               className="inline-flex w-fit items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 hover:shadow-md"
             >
-              <PlusCircle className="w-4 h-4" /> Upload Invoice
+              <PlusCircle className="w-4 h-4" /> Upload LPO Quote
             </button>
           )}
           <button onClick={fetchVouchers} disabled={loading} className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700">
@@ -364,7 +368,7 @@ function Dashboard({ user, onOpenSettings }) {
         <div className="erp-card p-5 flex items-center justify-between overflow-hidden relative">
           <span className="absolute inset-y-5 left-0 w-1 rounded-r-full bg-indigo-600" />
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Authorizations</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending LPOs</p>
             <h3 className="text-2xl font-black text-slate-900 mt-1">{vouchers.length}</h3>
             <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Live Queue
@@ -393,9 +397,9 @@ function Dashboard({ user, onOpenSettings }) {
           <span className="absolute inset-y-5 left-0 w-1 rounded-r-full bg-amber-500" />
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Workflows</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1">{workflows.length}</h3>
+            <h3 className="text-2xl font-black text-slate-900 mt-1">{lpoWorkflows.length}</h3>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
-              {workflows.length} flows across {voucherTypesCount} active modules
+              {lpoWorkflows.length} active flow{lpoWorkflows.length === 1 ? '' : 's'} for LPO module
             </p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
@@ -449,35 +453,10 @@ function Dashboard({ user, onOpenSettings }) {
         <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto pb-1 lg:pb-0">
           <button
             onClick={() => setSelectedType('all')}
-            className={`shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-              selectedType === 'all' 
-                ? 'bg-indigo-600 text-white shadow-xs' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className="shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs"
           >
-            All voucher types ({vouchers.length})
+            All LPO Quotes ({vouchers.length})
           </button>
-          {Array.from(new Set([
-            '1281', '771', '2570', '768',
-            ...workflows.map(wf => String(wf.VoucherType)).filter(t => t !== '0' && t !== '2560'),
-            ...vouchers.map(v => String(v.VoucherType)).filter(t => t !== '2560')
-          ])).map(moduleId => {
-            const vInfo = getVoucherType(moduleId);
-            const count = vouchers.filter(v => String(v.VoucherType) === moduleId).length;
-            return (
-              <button
-                key={moduleId}
-                onClick={() => setSelectedType(moduleId)}
-                className={`shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                  selectedType === moduleId
-                    ? 'bg-indigo-600 text-white shadow-xs' 
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {vInfo.code} ({count})
-              </button>
-            );
-          })}
         </div>
 
         <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -516,9 +495,9 @@ function Dashboard({ user, onOpenSettings }) {
           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-100">
             <CheckCircle2 className="w-8 h-8" />
           </div>
-          <h3 className="text-base font-bold text-slate-800">All Approvals Up to Date!</h3>
+          <h3 className="text-base font-bold text-slate-800">All LPO Approvals Up to Date!</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            There are currently no pending vouchers requiring your level authorization.
+            There are currently no pending LPO quotes requiring your authorization.
           </p>
         </div>
       ) : (
@@ -740,13 +719,13 @@ function Dashboard({ user, onOpenSettings }) {
         </div>
 
         {showWorkflowsSection && (
-          workflows.length === 0 ? (
+          lpoWorkflows.length === 0 ? (
             <div className="py-8 text-center text-slate-400 text-xs font-medium">
-              No approval workflows configured yet.
+              No LPO approval workflows configured yet.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-              {workflows.map((wf) => {
+              {lpoWorkflows.map((wf) => {
                 const matchedCC = costCenters.find(cc => cc.FocusMasterID === wf.CostCenterID);
                 return (
                   <div key={wf.ID} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3 hover:border-indigo-200 transition-colors">
@@ -1013,22 +992,34 @@ function Dashboard({ user, onOpenSettings }) {
                 </button>
               </div>
 
-              <div className="py-6">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-8 text-center min-h-[260px] flex flex-col items-center justify-center">
-                  {previewDoc.DocumentURL ? (
-                    previewDoc.DocumentURL.endsWith('.pdf') ? (
-                      <iframe src={resolveDocumentUrl(previewDoc.DocumentURL)} className="w-full h-[60dvh] rounded-lg border" title="ERP Doc"></iframe>
-                    ) : (
-                      <img src={resolveDocumentUrl(previewDoc.DocumentURL)} alt="Document" className="max-h-80 mx-auto rounded-lg shadow-xs" />
-                    )
-                  ) : (
-                    <div>
-                      <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                      <p className="text-sm font-semibold text-slate-700">Document File Attached from Focus ERP</p>
-                      <p className="text-xs text-slate-400 mt-1">URL: {previewDoc.DocumentURL || '/uploads/erp_doc_sample.pdf'}</p>
+              <div className="py-6 space-y-6 overflow-y-auto">
+                {(() => {
+                  let refDocs = [];
+                  if (previewDoc.reference_documents) {
+                    try { refDocs = JSON.parse(previewDoc.reference_documents); } catch(e) {}
+                  }
+                  const allDocs = previewDoc.DocumentURL ? [previewDoc.DocumentURL, ...refDocs] : refDocs;
+                  
+                  if (allDocs.length === 0) {
+                    return (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-8 text-center min-h-[260px] flex flex-col items-center justify-center">
+                        <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-slate-700">No documents attached</p>
+                      </div>
+                    );
+                  }
+                  
+                  return allDocs.map((doc, idx) => (
+                    <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-8 text-center min-h-[260px] flex flex-col items-center justify-center">
+                      <p className="text-sm font-bold text-slate-500 mb-3 text-left w-full">{idx === 0 ? "Primary Quote Document" : `Reference Document ${idx}`}</p>
+                      {doc.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                        <iframe src={resolveDocumentUrl(doc)} className="w-full h-[60dvh] rounded-lg border" title={`Document ${idx}`}></iframe>
+                      ) : (
+                        <img src={resolveDocumentUrl(doc)} alt={`Document ${idx}`} className="max-h-80 mx-auto rounded-lg shadow-xs" />
+                      )}
                     </div>
-                  )}
-                </div>
+                  ));
+                })()}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -1225,7 +1216,7 @@ function Dashboard({ user, onOpenSettings }) {
           </div>
         )}
 
-        {/* Upload Invoice Modal */}
+        {/* Upload LPO Quote Modal */}
         {showUploadModal && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <motion.div 
@@ -1240,7 +1231,7 @@ function Dashboard({ user, onOpenSettings }) {
                     <UploadCloud className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900">Upload Invoice</h3>
+                    <h3 className="text-base font-extrabold text-slate-900">Upload LPO Quote</h3>
                     <p className="text-xs text-slate-500">Attach document and queue for approval workflow</p>
                   </div>
                 </div>
@@ -1272,10 +1263,7 @@ function Dashboard({ user, onOpenSettings }) {
                     onChange={(e) => setUploadModule(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   >
-                    <option value="1281">MRP (1281) - Material Receipt To Expense</option>
-                    <option value="771">DEV (771) - Direct Expense Voucher</option>
-                    <option value="2570">CEB (2570) - Cash Expense Booking</option>
-                    <option value="768">PUV (768) - Purchases Vouchers</option>
+                    <option value="2560">LPO (2560) - Local Purchases Orders</option>
                   </select>
                 </div>
 
@@ -1350,6 +1338,47 @@ function Dashboard({ user, onOpenSettings }) {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Competitor Quotes / Reference Docs (Optional)
+                  </label>
+                  <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 text-center cursor-pointer transition bg-slate-50/50 relative">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,image/*"
+                      onChange={(e) => {
+                        if (e.target.files.length) {
+                          setReferenceFiles(prev => [...prev, ...Array.from(e.target.files)]);
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+                    <p className="text-xs font-bold text-slate-700">Add reference documents</p>
+                  </div>
+                  {referenceFiles.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {referenceFiles.map((file, idx) => (
+                        <li key={idx} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px]">
+                          <span className="truncate max-w-[200px]">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newFiles = [...referenceFiles];
+                              newFiles.splice(idx, 1);
+                              setReferenceFiles(newFiles);
+                            }}
+                            className="text-rose-500 hover:text-rose-700"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     Description / Remarks
                   </label>
                   <textarea
@@ -1394,4 +1423,4 @@ function Dashboard({ user, onOpenSettings }) {
   );
 }
 
-export default Dashboard;
+export default Quote;

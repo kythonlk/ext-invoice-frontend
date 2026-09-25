@@ -112,7 +112,7 @@ function Login({ onLogin }) {
                 <span>Focus ERP Company</span>
                 {selectedCompObj && (
                   <span className="text-[10px] text-indigo-600 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-semibold">
-                    {selectedCompObj.ERPDBName || `Focus8${selectedCompObj.CompanyCode}`}
+                    {selectedCompObj.ERPDBName || `Focus8${selectedCompObj.ERPCompanyCode || selectedCompObj.CompanyCode}`}
                   </span>
                 )}
               </label>
@@ -134,7 +134,7 @@ function Login({ onLogin }) {
                   ) : companies.length > 0 ? (
                     companies.map((c) => (
                       <option key={c.CompanyCode} value={c.CompanyCode}>
-                        {c.Name} ({c.CompanyCode} - {c.ERPDBName || `Focus8${c.CompanyCode}`})
+                        {c.Name} ({c.ERPCompanyCode || c.CompanyCode}{c.ERPCompanyCode && c.ERPCompanyCode !== c.CompanyCode ? ` · connection ${c.CompanyCode}` : ''} - {c.ERPDBName || `Focus8${c.ERPCompanyCode || c.CompanyCode}`})
                       </option>
                     ))
                   ) : (

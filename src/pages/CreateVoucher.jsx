@@ -64,6 +64,8 @@ export default function CreateVoucher({ user }) {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [costCenterId, setCostCenterId] = useState('');
   const [costCenterName, setCostCenterName] = useState('');
+  const [businessUnitId, setBusinessUnitId] = useState('');
+  const [businessUnitName, setBusinessUnitName] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [remarks, setRemarks] = useState('');
   
@@ -107,6 +109,7 @@ export default function CreateVoucher({ user }) {
         const res = await api.get('/vouchers/master-options');
         setOptions({
           cost_centers: res.data?.cost_centers || [],
+          business_units: res.data?.business_units || [],
           vendors: res.data?.vendors || [],
           products: res.data?.products || [],
           units: res.data?.units || [],
@@ -243,6 +246,8 @@ export default function CreateVoucher({ user }) {
       formData.append('net_amount', totalNet.toFixed(2));
       formData.append('cost_center_id', costCenterId.toString());
       formData.append('cost_center_name', costCenterName);
+      formData.append('business_unit_id', businessUnitId ? businessUnitId.toString() : '');
+      formData.append('business_unit_name', businessUnitName);
       formData.append('vendor_name', vendorName);
       formData.append('purchase_ac', VOUCHER_TYPE_METADATA[selectedType]?.account || 'Budget Expensed');
       formData.append('entity', selectedEntity || VOUCHER_TYPE_METADATA[selectedType]?.entity || 'GOC DXB');
@@ -666,6 +671,31 @@ export default function CreateVoucher({ user }) {
                 {options.cost_centers.map((cc) => (
                   <option key={cc.id} value={cc.id}>
                     {cc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Business Unit (Details Tab) */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Business Unit (Details Tab)
+              </label>
+              <select
+                value={businessUnitId}
+                onChange={(e) => {
+                  const selectedId = Number(e.target.value);
+                  setBusinessUnitId(selectedId || '');
+                  const found = (options.business_units || []).find((b) => b.id === selectedId);
+                  if (found) setBusinessUnitName(found.name);
+                  else setBusinessUnitName('');
+                }}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold outline-none transition-all bg-white"
+              >
+                <option value="">-- Inherit from Cost Center / Default --</option>
+                {(options.business_units || []).map((bu) => (
+                  <option key={bu.id} value={bu.id}>
+                    {bu.code ? `${bu.code} · ` : ''}{bu.name}
                   </option>
                 ))}
               </select>

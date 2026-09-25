@@ -3,14 +3,62 @@ import api from '../lib/api';
 import { getVoucherTypeLabel, VOUCHER_TYPE_OPTIONS } from '../lib/voucherTypes';
 import {
   Users, Plus, Layers, Trash2, X, Search, UploadCloud, RefreshCw, CheckCircle2, Pencil,
-  Building2, Server, Database, Globe, Activity, Check, AlertCircle, FileText, Tag, ToggleLeft, ToggleRight
+  Building2, Server, Database, Globe, Activity, Check, AlertCircle, FileText, Tag, ToggleLeft, ToggleRight,
+  Key, Eye, EyeOff, Sparkles, Copy, CheckCheck
 } from 'lucide-react';
+
+const extractHostFromURL = (urlStr) => {
+  try {
+    if (!urlStr) return '';
+    const clean = urlStr.trim();
+    const u = new URL(clean.startsWith('http://') || clean.startsWith('https://') ? clean : `http://${clean}`);
+    return u.hostname || '';
+  } catch {
+    return '';
+  }
+};
+
+const parseMSSQLDSN = (dsn) => {
+  if (!dsn || typeof dsn !== 'string' || !dsn.toLowerCase().startsWith('sqlserver://')) {
+    return { host: '', port: '1433', user: 'sa', password: '' };
+  }
+  try {
+    const afterScheme = dsn.slice('sqlserver://'.length);
+    const [authority] = afterScheme.split('?');
+    const lastAt = authority.lastIndexOf('@');
+    if (lastAt === -1) return { host: '', port: '1433', user: 'sa', password: '' };
+
+    const userPass = authority.slice(0, lastAt);
+    const hostPort = authority.slice(lastAt + 1);
+
+    const firstColon = userPass.indexOf(':');
+    let user = 'sa';
+    let password = '';
+    if (firstColon !== -1) {
+      user = userPass.slice(0, firstColon);
+      password = decodeURIComponent(userPass.slice(firstColon + 1));
+    } else {
+      user = userPass;
+    }
+
+    const [host, port] = hostPort.split(':');
+    return {
+      host: host || '',
+      port: port || '1433',
+      user: user || 'sa',
+      password: password || '',
+    };
+  } catch {
+    return { host: '', port: '1433', user: 'sa', password: '' };
+  }
+};
 
 function Admin() {
   const [activeTab, setActiveTab] = useState('workflows'); // 'workflows' | 'users' | 'companies' | 'voucher-types' | 'erp-tester'
   const [workflows, setWorkflows] = useState([]);
   const [users, setUsers] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
+  const [businessUnits, setBusinessUnits] = useState([]);
 
   // Companies & ERP Connection state
   const [companies, setCompanies] = useState([]);
@@ -29,6 +77,16 @@ function Admin() {
   const [testResults, setTestResults] = useState({});
   const [syncingCompany, setSyncingCompany] = useState({});
   const [syncStatusMsg, setSyncStatusMsg] = useState(null);
+
+  // MSSQL Connection Builder state
+  const [connMode, setConnMode] = useState('builder'); // 'builder' | 'raw'
+  const [sqlHost, setSqlHost] = useState('');
+  const [sqlPort, setSqlPort] = useState('1433');
+  const [sqlUser, setSqlUser] = useState('sa');
+  const [sqlPassword, setSqlPassword] = useState('');
+  const [showSqlPassword, setShowSqlPassword] = useState(false);
+  const [copiedDSN, setCopiedDSN] = useState(false);
+  const [genSuccessMsg, setGenSuccessMsg] = useState(false);
 
   // Voucher Types (Superuser Settings) state
   const [voucherTypes, setVoucherTypes] = useState([]);
@@ -49,6 +107,8 @@ function Admin() {
   const [wfVoucherType, setWfVoucherType] = useState(0);
   const [wfCostCenterId, setWfCostCenterId] = useState(0);
   const [wfCostCenterQuery, setWfCostCenterQuery] = useState('');
+  const [wfBusinessUnitId, setWfBusinessUnitId] = useState(0);
+  const [wfBusinessUnitQuery, setWfBusinessUnitQuery] = useState('');
   const [wfLevelsCount, setWfLevelsCount] = useState(2);
 
   // Restrictions modal state
@@ -203,38 +263,117 @@ function Admin() {
     }
   };
 
+  const buildMSSQLConn = (host, port, user, pass, dbName, compCode) => {
+    const targetHost = (host || extractHostFromURL(companyForm.erp_base_url) || '').trim();
+    const targetPort = (port || '1433').trim();
+    const targetUser = (user || 'sa').trim();
+    const targetDB = (dbName || ('Focus8' + (compCode || ''))).trim();
+    if (!targetHost || !targetDB) return '';
+    const safePass = pass ? encodeURIComponent(pass) : '';
+    const auth = safePass ? `${targetUser}:${safePass}@` : `${targetUser}@`;
+    return `sqlserver://${auth}${targetHost}:${targetPort}?database=${targetDB}&encrypt=disable&connection+timeout=30`;
+  };
+
+  const handlePasswordChange = (newPass) => {
+    setSqlPassword(newPass);
+    const gen = buildMSSQLConn(sqlHost, sqlPort, sqlUser, newPass, companyForm.erp_db_name, companyForm.company_code);
+    if (gen) {
+      setCompanyForm(prev => ({ ...prev, erp_db_conn: gen }));
+    }
+  };
+
+  const handleGenerateConn = () => {
+    const gen = buildMSSQLConn(sqlHost, sqlPort, sqlUser, sqlPassword, companyForm.erp_db_name, companyForm.company_code);
+    if (gen) {
+      setCompanyForm(prev => ({ ...prev, erp_db_conn: gen }));
+      setGenSuccessMsg(true);
+      setTimeout(() => setGenSuccessMsg(false), 2200);
+    } else {
+      alert("Please ensure ERP Database Name and Host/URL are specified to generate connection string.");
+    }
+  };
+
+  const handleCopyDSN = (dsn) => {
+    if (!dsn) return;
+    navigator.clipboard.writeText(dsn);
+    setCopiedDSN(true);
+    setTimeout(() => setCopiedDSN(false), 2000);
+  };
+
   const handleOpenEditCompany = (comp) => {
     if (comp) {
+      const scopeCode = comp.CompanyCode || comp.company_code || '';
+      const compCode = comp.ERPCompanyCode || comp.erp_company_code || scopeCode;
+      const name = comp.Name || comp.name || '';
+      const erpUrl = comp.ERPBaseURL || comp.erp_base_url || 'http://192.168.30.7:3101/Focus8API';
+      const dbName = comp.ERPDBName || comp.erp_db_name || ('Focus8' + compCode);
+      const dbConn = comp.ERPDBConn || comp.erp_db_conn || '';
+      const isActive = comp.IsActive !== false && comp.is_active !== false;
+
       setEditingCompany(comp);
       setCompanyForm({
-        name: comp.Name || '',
-        company_code: comp.CompanyCode || '',
-        erp_base_url: comp.ERPBaseURL || 'http://192.168.30.7:3101/Focus8API',
-        erp_db_name: comp.ERPDBName || ('Focus8' + comp.CompanyCode),
-        erp_db_conn: comp.ERPDBConn || '',
-        is_active: comp.IsActive !== false,
+        name,
+        company_code: compCode,
+        erp_base_url: erpUrl,
+        erp_db_name: dbName,
+        erp_db_conn: dbConn,
+        is_active: isActive,
       });
+
+      const parsed = parseMSSQLDSN(dbConn);
+      setSqlHost(parsed.host || extractHostFromURL(erpUrl) || '');
+      setSqlPort(parsed.port || '1433');
+      setSqlUser(parsed.user || 'sa');
+      setSqlPassword(parsed.password || '');
+      setShowSqlPassword(false);
+      setConnMode(dbConn && !dbConn.toLowerCase().startsWith('sqlserver://') ? 'raw' : 'builder');
     } else {
       setEditingCompany(null);
+      const defaultUrl = 'http://192.168.6.224:8081/Focus8API';
       setCompanyForm({
         name: '',
         company_code: '',
-        erp_base_url: 'http://192.168.30.7:3101/Focus8API',
+        erp_base_url: defaultUrl,
         erp_db_name: '',
         erp_db_conn: '',
         is_active: true,
       });
+      setSqlHost(extractHostFromURL(defaultUrl) || '');
+      setSqlPort('1433');
+      setSqlUser('sa');
+      setSqlPassword('');
+      setShowSqlPassword(false);
+      setConnMode('builder');
     }
+    setGenSuccessMsg(false);
+    setCopiedDSN(false);
     setShowCompanyModal(true);
   };
 
   const handleSaveCompany = async (e) => {
     e.preventDefault();
     try {
+      let finalConn = (companyForm.erp_db_conn || '').trim();
+      if (connMode === 'builder' && sqlPassword && !finalConn) {
+        finalConn = buildMSSQLConn(sqlHost, sqlPort, sqlUser, sqlPassword, companyForm.erp_db_name, companyForm.company_code);
+      }
+      const payload = {
+        ...companyForm,
+        erp_db_conn: finalConn,
+        CompanyCode: companyForm.company_code,
+        ERPCompanyCode: companyForm.company_code,
+        Name: companyForm.name,
+        ERPBaseURL: companyForm.erp_base_url,
+        ERPDBName: companyForm.erp_db_name,
+        ERPDBConn: finalConn,
+        IsActive: companyForm.is_active,
+      };
+
       if (editingCompany) {
-        await api.put(`/companies/${editingCompany.CompanyCode}`, companyForm);
+        const code = editingCompany.CompanyCode || editingCompany.company_code;
+        await api.put(`/companies/${code}`, payload);
       } else {
-        await api.post('/companies', companyForm);
+        await api.post('/companies', payload);
       }
       setShowCompanyModal(false);
       loadCompanies();
@@ -246,14 +385,16 @@ function Admin() {
   const loadData = async (compOverride) => {
     try {
       const compParam = compOverride !== undefined ? compOverride : userCompanyFilter;
-      const [wfRes, uRes, ccRes] = await Promise.all([
+      const [wfRes, uRes, ccRes, buRes] = await Promise.all([
         api.get('/admin/workflows'),
         api.get('/admin/users', { params: { company_code: compParam || 'all' } }),
-        api.get('/admin/cost-centers', { params: { company_code: compParam || 'all' } })
+        api.get('/admin/cost-centers', { params: { company_code: compParam || 'all' } }),
+        api.get('/admin/business-units', { params: { company_code: compParam || 'all' } })
       ]);
       setWorkflows(Array.isArray(wfRes.data) ? wfRes.data : []);
       setUsers(Array.isArray(uRes.data) ? uRes.data : []);
       setCostCenters(Array.isArray(ccRes.data) ? ccRes.data : []);
+      setBusinessUnits(Array.isArray(buRes.data) ? buRes.data : []);
     } catch (err) {
       console.error("Failed to load admin data:", err);
     }
@@ -278,6 +419,10 @@ function Admin() {
     setWfCostCenterId(wf.CostCenterID ?? 0);
     const matched = costCenters.find((cc) => Number(cc.FocusMasterID) === Number(wf.CostCenterID));
     setWfCostCenterQuery(wf.CostCenterID ? (matched ? `${matched.Code ? `${matched.Code} · ` : ''}${matched.Name}` : String(wf.CostCenterID)) : 'Any cost center');
+    const buId = wf.BusinessUnitID ?? wf.business_unit_id ?? 0;
+    setWfBusinessUnitId(buId);
+    const matchedBU = businessUnits.find((bu) => Number(bu.focus_master_id || bu.FocusMasterID) === Number(buId));
+    setWfBusinessUnitQuery(buId ? (matchedBU ? `${(matchedBU.code || matchedBU.Code) ? `${matchedBU.code || matchedBU.Code} · ` : ''}${matchedBU.name || matchedBU.Name}` : (wf.BusinessUnitName || String(buId))) : 'Any business unit');
     setWfLevelsCount(wf.LevelsCount || 1);
     setShowWorkflowModal(true);
   };
@@ -289,6 +434,10 @@ function Admin() {
       alert('Choose a cost center from the suggestions, or select “Any cost center”.');
       return;
     }
+    if (wfBusinessUnitQuery.trim() && wfBusinessUnitQuery !== 'Any business unit' && !wfBusinessUnitId) {
+      alert('Choose a business unit from the suggestions, or select “Any business unit”.');
+      return;
+    }
     try {
       const levelsNum = Math.min(Math.max(parseInt(wfLevelsCount, 10) || 1, 1), 10);
       await api.post('/admin/workflows', {
@@ -296,6 +445,7 @@ function Admin() {
         name: wfName.trim(),
         voucher_type: parseInt(wfVoucherType, 10) || 0,
         cost_center_id: parseInt(wfCostCenterId, 10) || 0,
+        business_unit_id: parseInt(wfBusinessUnitId, 10) || 0,
         levels_count: levelsNum
       });
       setShowWorkflowModal(false);
@@ -304,6 +454,8 @@ function Admin() {
       setWfVoucherType(0);
       setWfCostCenterId(0);
       setWfCostCenterQuery('');
+      setWfBusinessUnitId(0);
+      setWfBusinessUnitQuery('');
       setWfLevelsCount(2);
       await loadData();
     } catch (err) {
@@ -508,8 +660,10 @@ function Admin() {
                 setEditingWorkflow(null);
                 setWfName('');
                 setWfVoucherType(0);
-                  setWfCostCenterId(0);
-                  setWfCostCenterQuery('');
+                setWfCostCenterId(0);
+                setWfCostCenterQuery('');
+                setWfBusinessUnitId(0);
+                setWfBusinessUnitQuery('');
                 setWfLevelsCount(2);
                 setShowWorkflowModal(true);
               }}
@@ -521,7 +675,9 @@ function Admin() {
 
           <div className="space-y-6">
             {workflows.map((wf) => {
-              const matchedCostCenter = costCenters.find(cc => cc.FocusMasterID === wf.CostCenterID);
+              const matchedCostCenter = costCenters.find(cc => Number(cc.FocusMasterID) === Number(wf.CostCenterID));
+              const buId = wf.BusinessUnitID ?? wf.business_unit_id ?? 0;
+              const matchedBU = businessUnits.find(bu => Number(bu.focus_master_id || bu.FocusMasterID) === Number(buId));
               return (
                 <div key={wf.ID} className="erp-card p-4 sm:p-6 space-y-6">
                   {/* Workflow Title */}
@@ -533,7 +689,10 @@ function Admin() {
                           {wf.VoucherType === 0 ? 'All Voucher Types' : (wf.VoucherTypeLabel || getVoucherTypeLabel(wf.VoucherType))}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                          {wf.CostCenterID === 0 ? 'Any Cost Center' : `CC: ${matchedCostCenter?.Name || wf.CostCenterID}`}
+                          {wf.CostCenterID === 0 ? 'Any Cost Center' : `CC: ${matchedCostCenter?.Name || wf.CostCenterName || wf.CostCenterID}`}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                          {buId === 0 ? 'Any Business Unit' : `BU: ${matchedBU?.name || matchedBU?.Name || wf.BusinessUnitName || buId}`}
                         </span>
                       </div>
                       <p className="text-xs text-slate-400 mt-1">Total Sequential Levels: {wf.LevelsCount} (Max 10)</p>
@@ -650,7 +809,7 @@ function Admin() {
                 <option value="all">🏢 All Companies ({users.length})</option>
                 {companies.map((c) => (
                   <option key={c.CompanyCode} value={c.CompanyCode}>
-                    🏢 {c.CompanyCode} - {c.Name}
+                    🏢 {c.ERPCompanyCode || c.CompanyCode}{c.ERPCompanyCode && c.ERPCompanyCode !== c.CompanyCode ? ` · ${c.CompanyCode}` : ''} - {c.Name}
                   </option>
                 ))}
               </select>
@@ -958,7 +1117,7 @@ function Admin() {
                           <td className="py-3.5 px-4 font-semibold text-slate-900">
                             <div className="flex items-center gap-2">
                               <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
-                                {comp.CompanyCode}
+                                {comp.ERPCompanyCode || comp.CompanyCode}
                               </span>
                               <div>
                                 <div className="flex items-center gap-1.5">
@@ -969,7 +1128,7 @@ function Admin() {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-[11px] text-slate-400 font-mono">Code: {comp.CompanyCode}</span>
+                                <span className="text-[11px] text-slate-400 font-mono">ERP: {comp.ERPCompanyCode || comp.CompanyCode} · Scope: {comp.CompanyCode}</span>
                               </div>
                             </div>
                           </td>
@@ -977,7 +1136,7 @@ function Admin() {
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-1.5 font-mono text-slate-700 font-semibold">
                               <Database className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{comp.ERPDBName || ('Focus8' + comp.CompanyCode)}</span>
+                              <span>{comp.ERPDBName || ('Focus8' + (comp.ERPCompanyCode || comp.CompanyCode))}</span>
                             </div>
                           </td>
 
@@ -1352,10 +1511,37 @@ function Admin() {
                 <datalist id="workflow-cost-centers">
                   <option value="Any cost center" />
                   {costCenters.filter((cc) => Number(cc.FocusMasterID) > 0 && String(cc.Name || '').trim()).map((cc) => (
-                    <option key={cc.ID} value={`${cc.Code ? `${cc.Code} · ` : ''}${cc.Name}`} />
+                    <option key={cc.ID || cc.id} value={`${cc.Code ? `${cc.Code} · ` : ''}${cc.Name}`} />
                   ))}
                 </datalist>
                 <p className="text-[11px] text-slate-400 mt-1">Start typing a name or code, then choose a suggestion. Leave this as “Any cost center” for a general workflow.</p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Business Unit Scope (Details Tab)</label>
+                <input
+                  list="workflow-business-units"
+                  value={wfBusinessUnitQuery}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setWfBusinessUnitQuery(value);
+                    if (value === 'Any business unit') {
+                      setWfBusinessUnitId(0);
+                      return;
+                    }
+                    const match = businessUnits.find((bu) => `${(bu.code || bu.Code) ? `${bu.code || bu.Code} · ` : ''}${bu.name || bu.Name}` === value);
+                    setWfBusinessUnitId(match ? (match.focus_master_id || match.FocusMasterID) : '');
+                  }}
+                  placeholder="Search by business unit name or code (e.g. Aluminum Works)"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <datalist id="workflow-business-units">
+                  <option value="Any business unit" />
+                  {businessUnits.filter((bu) => Number(bu.focus_master_id || bu.FocusMasterID) > 0 && String(bu.name || bu.Name || '').trim()).map((bu) => (
+                    <option key={bu.id || bu.ID} value={`${(bu.code || bu.Code) ? `${bu.code || bu.Code} · ` : ''}${bu.name || bu.Name}`} />
+                  ))}
+                </datalist>
+                <p className="text-[11px] text-slate-400 mt-1">Select the Business Unit matching the Details tab in ERP (e.g. Aluminum Works, Steel Works), or leave as “Any business unit”.</p>
               </div>
 
               <div>
@@ -1478,7 +1664,7 @@ function Admin() {
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-extrabold text-slate-900">
-                  {editingCompany ? `Edit Company: ${editingCompany.CompanyCode}` : 'Register New Company & ERP'}
+                  {editingCompany ? `Edit Company: ${editingCompany.ERPCompanyCode || editingCompany.CompanyCode}` : 'Register New Company & ERP'}
                 </h3>
               </div>
               <button onClick={() => setShowCompanyModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -1494,11 +1680,18 @@ function Admin() {
                   required
                   disabled={!!editingCompany}
                   value={companyForm.company_code}
-                  onChange={(e) => setCompanyForm({ ...companyForm, company_code: e.target.value })}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const updates = { ...companyForm, company_code: code };
+                    if (!editingCompany && (!companyForm.erp_db_name || companyForm.erp_db_name === `Focus8${companyForm.company_code}`)) {
+                      updates.erp_db_name = code ? `Focus8${code}` : '';
+                    }
+                    setCompanyForm(updates);
+                  }}
                   placeholder="e.g. 010, 040, 0D0"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100 disabled:text-slate-500"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">3-character Focus ERP company identifier (e.g., 0D0).</p>
+                <p className="text-[11px] text-slate-400 mt-1">Focus ERP company identifier (e.g., 0D0). If this code already exists on another server, FocusX creates a separate connection scope automatically.</p>
               </div>
 
               <div>
@@ -1519,7 +1712,15 @@ function Admin() {
                   type="text"
                   required
                   value={companyForm.erp_base_url}
-                  onChange={(e) => setCompanyForm({ ...companyForm, erp_base_url: e.target.value })}
+                  onChange={(e) => {
+                    const url = e.target.value;
+                    const oldHost = extractHostFromURL(companyForm.erp_base_url);
+                    const newHost = extractHostFromURL(url);
+                    setCompanyForm({ ...companyForm, erp_base_url: url });
+                    if (!sqlHost || sqlHost === oldHost) {
+                      setSqlHost(newHost);
+                    }
+                  }}
                   placeholder="http://192.168.30.7:3101/Focus8API"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
@@ -1531,23 +1732,190 @@ function Admin() {
                   type="text"
                   required
                   value={companyForm.erp_db_name}
-                  onChange={(e) => setCompanyForm({ ...companyForm, erp_db_name: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCompanyForm({ ...companyForm, erp_db_name: val });
+                    if (connMode === 'builder' && sqlPassword) {
+                      const gen = buildMSSQLConn(sqlHost, sqlPort, sqlUser, sqlPassword, val, companyForm.company_code);
+                      if (gen) setCompanyForm(prev => ({ ...prev, erp_db_name: val, erp_db_conn: gen }));
+                    }
+                  }}
                   placeholder="e.g. Focus80D0 or Focus8010"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">Direct database name in SQL Server on port 1433.</p>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Custom MSSQL DSN (Optional)</label>
-                <input
-                  type="text"
-                  value={companyForm.erp_db_conn || ''}
-                  onChange={(e) => setCompanyForm({ ...companyForm, erp_db_conn: e.target.value })}
-                  placeholder="sqlserver://sa:P%40ssw0rd@192.168.30.7:1433?database=... (Leave blank to use default server)"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Leave empty to use default SQL server host with the specified Database Name above.</p>
+              {/* MSSQL Connection Configuration with Quick Generator */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Database className="w-4 h-4 text-indigo-600" />
+                    <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                      MSSQL Connection String
+                    </span>
+                  </div>
+                  {/* Mode switcher */}
+                  <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setConnMode('builder')}
+                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                        connMode === 'builder' ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-500" /> Quick Generator
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConnMode('raw')}
+                      className={`px-2.5 py-1 rounded-md transition-all ${
+                        connMode === 'raw' ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Raw DSN
+                    </button>
+                  </div>
+                </div>
+
+                {connMode === 'builder' ? (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          SQL Server Host / IP
+                        </label>
+                        <input
+                          type="text"
+                          value={sqlHost}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSqlHost(val);
+                            if (sqlPassword) {
+                              const gen = buildMSSQLConn(val, sqlPort, sqlUser, sqlPassword, companyForm.erp_db_name, companyForm.company_code);
+                              if (gen) setCompanyForm(prev => ({ ...prev, erp_db_conn: gen }));
+                            }
+                          }}
+                          placeholder={extractHostFromURL(companyForm.erp_base_url) || "e.g. 192.168.6.244"}
+                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Port
+                        </label>
+                        <input
+                          type="text"
+                          value={sqlPort}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSqlPort(val);
+                            if (sqlPassword) {
+                              const gen = buildMSSQLConn(sqlHost, val, sqlUser, sqlPassword, companyForm.erp_db_name, companyForm.company_code);
+                              if (gen) setCompanyForm(prev => ({ ...prev, erp_db_conn: gen }));
+                            }
+                          }}
+                          placeholder="1433"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          SQL User
+                        </label>
+                        <input
+                          type="text"
+                          value={sqlUser}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSqlUser(val);
+                            if (sqlPassword) {
+                              const gen = buildMSSQLConn(sqlHost, sqlPort, val, sqlPassword, companyForm.erp_db_name, companyForm.company_code);
+                              if (gen) setCompanyForm(prev => ({ ...prev, erp_db_conn: gen }));
+                            }
+                          }}
+                          placeholder="sa"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1 text-indigo-700 font-extrabold">
+                            <Key className="w-3 h-3 text-indigo-600" /> SQL Password
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">Auto-encodes special chars (@, #)</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showSqlPassword ? "text" : "password"}
+                            value={sqlPassword}
+                            onChange={(e) => handlePasswordChange(e.target.value)}
+                            placeholder="e.g. P@ssw0rd"
+                            className="w-full p-2 pr-9 bg-white border border-indigo-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSqlPassword(!showSqlPassword)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                            tabIndex={-1}
+                          >
+                            {showSqlPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={handleGenerateConn}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs flex items-center gap-1.5 border border-indigo-200 transition-all shadow-2xs hover:scale-[1.01] active:scale-[0.99]"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{genSuccessMsg ? "✓ DSN Generated!" : "Generate Connection String"}</span>
+                      </button>
+                      {companyForm.erp_db_conn && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDSN(companyForm.erp_db_conn)}
+                          className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 font-semibold"
+                        >
+                          {copiedDSN ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedDSN ? "Copied DSN" : "Copy DSN"}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {companyForm.erp_db_conn ? (
+                      <div className="p-2.5 bg-slate-900 rounded-xl text-[11px] text-slate-200 font-mono break-all select-all border border-slate-800">
+                        <span className="text-emerald-400 font-bold mr-1.5">DSN:</span>
+                        {companyForm.erp_db_conn}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic">
+                        Tip: Fill Database Name and enter SQL Password above, then click Generate to create safe DSN.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Custom MSSQL DSN
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={companyForm.erp_db_conn || ''}
+                      onChange={(e) => setCompanyForm({ ...companyForm, erp_db_conn: e.target.value })}
+                      placeholder="sqlserver://sa:P%40ssw0rd@192.168.6.244:1433?database=Focus8070&encrypt=disable&connection+timeout=30"
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                    <p className="text-[11px] text-slate-400">Leave empty to use default SQL server host with the specified Database Name above.</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-2">

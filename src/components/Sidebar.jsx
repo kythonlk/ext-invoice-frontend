@@ -103,6 +103,26 @@ function Sidebar({ user, onLogout, isOpen, onClose, onOpenSettings }) {
               </span>
             </NavLink>
 
+            {/* Quote / LPO Upload */}
+            <NavLink
+              to="/quote"
+              onClick={onClose}
+              className={({ isActive }) => clsx(
+                "flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-sm font-medium",
+                isActive 
+                  ? "bg-white text-indigo-950 font-bold shadow-xl shadow-indigo-950/20" 
+                  : "text-indigo-100/75 hover:text-white hover:bg-white/10"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <FilePlus2 className="w-4 h-4" />
+                <span>Supplier Quote</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/25 text-amber-100">
+                LPO
+              </span>
+            </NavLink>
+
             {/* Create Voucher - Only for Superuser when enabled */}
             {isSuperUser && showManualVoucherCreation && (
               <NavLink

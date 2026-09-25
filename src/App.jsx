@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import CreateVoucher from './pages/CreateVoucher';
 import ApprovedVouchers from './pages/ApprovedVouchers';
+import Quote from './pages/Quote';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
@@ -102,6 +103,15 @@ function App() {
                 element={
                   user 
                     ? <ApprovedVouchers user={user} /> 
+                    : <Navigate to="/login" />
+                } 
+              />
+              
+              <Route 
+                path="/quote" 
+                element={
+                  user 
+                    ? <Quote user={user} /> 
                     : <Navigate to="/login" />
                 } 
               />
